@@ -1,0 +1,91 @@
+{
+  "players": [
+    {
+      "nickname": "Player1",
+      "real_name": "Alice",
+      "user_id": "1"
+    },
+    {
+      "nickname": "Player2",
+      "real_name": "Bob",
+      "user_id": "2"
+    }
+  ],
+  "events": [
+    {
+      "nickname": "Player1",
+      "note": "HELLO",
+      "rack": "HELLOXYZ",
+      "type": 0,
+      "cumulative": 18,
+      "row": 7,
+      "column": 7,
+      "position": "8H",
+      "played_tiles": "HELLO",
+      "exchanged": "",
+      "score": 18,
+      "bonus": 0,
+      "end_rack_points": 0,
+      "time_penalty": 0,
+      "lost_score": 0,
+      "millis_remaining": 1500000,
+      "is_bingo": false
+    },
+    {
+      "nickname": "Player2",
+      "note": "WORLD",
+      "rack": "WORLDAB",
+      "type": 0,
+      "cumulative": 24,
+      "row": 8,
+      "column": 7,
+      "position": "9H",
+      "played_tiles": "WORLD",
+      "exchanged": "",
+      "score": 24,
+      "bonus": 0,
+      "end_rack_points": 0,
+      "time_penalty": 0,
+      "lost_score": 0,
+      "millis_remaining": 1500000,
+      "is_bingo": false
+    },
+    {
+      "nickname": "Player1",
+      "note": "EXAMPLE",
+      "rack": "EXAMPLEI",
+      "type": 0,
+      "cumulative": 88,
+      "row": 6,
+      "column": 4,
+      "position": "7E",
+      "played_tiles": "EXAMPLE",
+      "exchanged": "",
+      "score": 70,
+      "bonus": 50,
+      "end_rack_points": 0,
+      "time_penalty": 0,
+      "lost_score": 0,
+      "millis_remaining": 1450000,
+      "is_bingo": true
+    }
+  ],
+  "version": 1,
+  "lexicon": "CSW21",
+  "id_auth": "sample",
+  "uid": "sample-game-123",
+  "title": "Sample Scrabble Game",
+  "description": "A demonstration game showcasing the video system",
+  "last_update": 1709856000000,
+  "challenge_rule": 0,
+  "variant": "classic",
+  "initial_time_seconds": 1500,
+  "increment_seconds": 0,
+  "max_overtime_minutes": 0,
+  "rating_mode": "RATED",
+  "game_end_reason": 0,
+  "winner": 0,
+  "final_scores": [350, 320],
+  "board_layout": "=  '   =   '  =\n -   \"   \"   - \n  -   ' '   -  \n'  -   '   -  '\n    -     -    \n \"   \"   \"   \" \n  '   ' '   '  \n=  '   -   '  =\n  '   ' '   '  \n \"   \"   \"   \" \n    -     -    \n'  -   '   -  '\n  -   ' '   -  \n -   \"   \"   - \n=  '   =   '  =",
+  "letter_distribution": "english"
+}

@@ -8,6 +8,10 @@
 import { Config } from "@remotion/cli/config";
 import { enableTailwind } from '@remotion/tailwind-v4';
 
+// Use angle (hardware-accelerated) for WebGL rendering
+// Restart dev server after changing this config!
+Config.setChromiumOpenGlRenderer('angle');
+
 Config.setVideoImageFormat("jpeg");
 Config.setOverwriteOutput(true);
 Config.overrideWebpackConfig(enableTailwind);
