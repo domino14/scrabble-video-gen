@@ -60,7 +60,6 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
       .filter(cue => cue.time <= currentTimeSeconds)
       .at(-1);
     if (frame % 30 === 0) { // Log every second
-      console.log(`Time: ${currentTimeSeconds.toFixed(1)}s, Frame: ${frame}, Active cue:`, cue);
     }
     return cue;
   }, [currentTimeSeconds, timingScript.cues, frame]);
@@ -123,6 +122,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
 
       switch (cue.action) {
         case 'overview':
+          console.log(`OVERVIEW keyframe at frame ${cueFrame}, lookAt.y=-10`);
           keyframes.push({
             frame: cueFrame,
             position: [0, -40, 90],
@@ -169,33 +169,61 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
               newTiles = [...newTiles].sort((a, b) => a.col - b.col);
             }
 
-            const speed = cue.speed || 1.0;
-            const adjustedStagger = 8 / speed; // TILE_STAGGER / speed
             const zoomHeight = cue.zoomHeight || 15;
 
-            // For each tile: add keyframes to hold camera stationary at each position
-            newTiles.forEach((tile, index) => {
-              // Camera at the SAME row/col as the tile, but at height zoomHeight
-              const targetPos = getBoardPosition(tile.row, tile.col);
-              const tileStartFrame = cueFrame + index * adjustedStagger;
+            // Camera offset: position camera in Y to keep tiles centered in frame
+            const cameraYOffset = 5; // Offset forward to center tiles in frame
 
-              // Add keyframe when this tile starts animating
-              keyframes.push({
-                frame: tileStartFrame,
-                position: [targetPos.x, targetPos.y, zoomHeight],
-                lookAt: [targetPos.x, targetPos.y, targetPos.z],
-              });
+            // MEASURED timing model (from user measurements):
+            // - Tile animation speed: 0.3 (hardcoded in TileAnimated)
+            // - Stagger: 8 / 0.3 ≈ 26.67 frames between tile starts
+            // - Fall time: ~40 frames per tile to land
+            const TILE_ANIMATION_SPEED = 0.3;
+            const staggerFrames = 8 / TILE_ANIMATION_SPEED; // ~26.67 frames
+            const tileFallTime = 40; // Measured from frame data
 
-              // Hold camera stationary until after this tile finishes
-              const holdUntilFrame = index < newTiles.length - 1
-                ? tileStartFrame + adjustedStagger - 2  // Hold until just before next tile
-                : tileStartFrame + 60;                   // Last tile: hold for 60 frames
+            const firstTile = newTiles[0];
+            const lastTile = newTiles[newTiles.length - 1];
 
-              keyframes.push({
-                frame: holdUntilFrame,
-                position: [targetPos.x, targetPos.y, zoomHeight],
-                lookAt: [targetPos.x, targetPos.y, targetPos.z],
-              });
+            const firstTilePos = getBoardPosition(firstTile.row, firstTile.col);
+            const lastTilePos = getBoardPosition(lastTile.row, lastTile.col);
+
+            // Continuous pan from first tile to last tile
+            // Start: when first tile starts falling
+            // End: when last tile lands
+            const panStartFrame = cueFrame;
+            const lastTileStartFrame = cueFrame + (newTiles.length - 1) * staggerFrames;
+            const panEndFrame = lastTileStartFrame + tileFallTime;
+
+            console.log('=== CONTINUOUS PAN MODEL ===');
+            console.log('Tiles: ' + newTiles.length);
+            console.log('Stagger: ' + staggerFrames.toFixed(1) + ' frames');
+            console.log('Tile fall time: ' + tileFallTime + ' frames');
+            console.log('Pan start frame: ' + panStartFrame);
+            console.log('Pan end frame: ' + panEndFrame);
+            console.log('Total pan duration: ' + (panEndFrame - panStartFrame) + ' frames');
+
+            // Start position: above first tile, offset back in Y to center tiles in frame
+            keyframes.push({
+              frame: panStartFrame,
+              position: [firstTilePos.x, firstTilePos.y + cameraYOffset, zoomHeight],
+              lookAt: [firstTilePos.x, firstTilePos.y + cameraYOffset, firstTilePos.z],
+              linear: true, // Constant speed pan
+            });
+
+            // End position: above last tile
+            keyframes.push({
+              frame: panEndFrame,
+              position: [lastTilePos.x, lastTilePos.y + cameraYOffset, zoomHeight],
+              lookAt: [lastTilePos.x, lastTilePos.y + cameraYOffset, lastTilePos.z],
+              linear: true, // Constant speed pan
+            });
+
+            // Hold at last tile briefly before transitioning out
+            keyframes.push({
+              frame: panEndFrame + 30,
+              position: [lastTilePos.x, lastTilePos.y + cameraYOffset, zoomHeight],
+              lookAt: [lastTilePos.x, lastTilePos.y + cameraYOffset, lastTilePos.z],
             });
           }
           break;
@@ -211,7 +239,15 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
       });
     }
 
-    console.log('Camera keyframes:', keyframes);
+    // Log all keyframes around the INCENSE animation
+    const relevantKeyframes = keyframes.filter(k => k.frame >= 300 && k.frame <= 450);
+    if (relevantKeyframes.length > 0) {
+      console.log('ALL KEYFRAMES (frames 300-450):');
+      relevantKeyframes.forEach(k => {
+        console.log(`  Frame ${k.frame}: pos.y=${k.position[1].toFixed(2)}, lookAt.y=${k.lookAt[1].toFixed(2)}`);
+      });
+    }
+
     return keyframes;
   }, [timingScript.cues, fps]);
 
@@ -230,9 +266,11 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
     const stateIndex = recentPlayTiles.turnIndex + 1;
     const state = boardStates[stateIndex];
     const numTiles = state?.tiles.filter(t => t.isNew).length || 0;
-    const speed = recentPlayTiles.speed || 1.0;
-    const adjustedStagger = 8 / speed;
-    const springDuration = 30 / speed; // Approximate spring settle time
+
+    // Use correct speed: 0.3 for play_tiles_with_zoom, timing script speed for regular play_tiles
+    const actualSpeed = recentPlayTiles.action === 'play_tiles_with_zoom' ? 0.3 : (recentPlayTiles.speed || 1.0);
+    const adjustedStagger = 8 / actualSpeed;
+    const springDuration = 30 / actualSpeed; // Approximate spring settle time
     const animationDuration = ((numTiles - 1) * adjustedStagger + springDuration + 10) / fps; // +10 frames buffer
 
     // Check if we're within the animation duration
@@ -370,24 +408,24 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                 playerIndex = cue.turnIndex % state.players.length;
 
                 // Debug turn 3 rack display
-                if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5) {
-                  console.log(`Turn 3 rack debug @ ${currentTimeSeconds.toFixed(2)}s:`, {
-                    cueAction: cue.action,
-                    cueTurnIndex: cue.turnIndex,
-                    stateIndex: nextStateIndex,
-                    playerIndex: playerIndex,
-                    rackLetters: state.players[playerIndex]?.rack?.join('') || 'EMPTY',
-                    allPlayers: state.players.map((p, i) => `P${i}: ${p.rack?.join('') || 'EMPTY'}`)
-                  });
-                }
+                // if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5) {
+                //   console.log(`Turn 3 rack debug @ ${currentTimeSeconds.toFixed(2)}s:`, {
+                //     cueAction: cue.action,
+                //     cueTurnIndex: cue.turnIndex,
+                //     stateIndex: nextStateIndex,
+                //     playerIndex: playerIndex,
+                //     rackLetters: state.players[playerIndex]?.rack?.join('') || 'EMPTY',
+                //     allPlayers: state.players.map((p, i) => `P${i}: ${p.rack?.join('') || 'EMPTY'}`)
+                //   });
+                // }
               }
 
               const player = state.players[playerIndex];
 
               if (!player || !player.rack || player.rack.length === 0) {
-                if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5) {
-                  console.log('Turn 3 rack EMPTY - returning null:', { player: !!player, hasRack: !!player?.rack, rackLength: player?.rack?.length });
-                }
+                // if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5) {
+                //   console.log('Turn 3 rack EMPTY - returning null:', { player: !!player, hasRack: !!player?.rack, rackLength: player?.rack?.length });
+                // }
                 return null;
               }
 
@@ -502,18 +540,18 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
               const rackTiles = player.rack.map((letter, index) => {
                 // Hide only the specific rack positions being animated
                 if (animatedRackIndices.has(index)) {
-                  if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5 && index === 0) {
-                    console.log('Turn 3: Tile', index, 'is hidden (animated)');
-                  }
+                  // if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5 && index === 0) {
+                  //   console.log('Turn 3: Tile', index, 'is hidden (animated)');
+                  // }
                   return null;
                 }
 
                 const rackPos = getRackPosition(index);
                 const theta = getRackTileRotation();
 
-                if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5 && index === 0) {
-                  console.log('Turn 3: Rendering tile', index, letter, 'at position:', rackPos, 'rotation:', theta);
-                }
+                // if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5 && index === 0) {
+                //   console.log('Turn 3: Rendering tile', index, letter, 'at position:', rackPos, 'rotation:', theta);
+                // }
 
                 // Determine tile value from letter (blank detection)
                 // Blanks can be '?' or lowercase letters
@@ -597,7 +635,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                       blank={tile.blank}
                       startFrame={animStartFrame}
                       index={playIndex}
-                      speed={playTilesCue.speed || 1.0}
+                      speed={playTilesCue.action === 'play_tiles_with_zoom' ? 0.3 : (playTilesCue.speed || 1.0)}
                     />
                   );
                 });
@@ -744,12 +782,16 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
           const prevTileKeys = new Set(prevState?.tiles.map(t => `${t.row},${t.col}`) || []);
           const highlightedTiles = highlightState.tiles.filter(t => !prevTileKeys.has(`${t.row},${t.col}`));
 
+          console.log('Highlighting tiles:', highlightedTiles.length, 'tiles at turn', activeCue.turnIndex);
+
           return highlightedTiles.map((tile, index) => {
             const position = getBoardPosition(tile.row, tile.col);
             return (
               <TileGlow
                 key={`glow-${tile.row}-${tile.col}-${index}`}
-                position={[position.x, position.y, position.z - 1]}
+                position={[position.x, position.y, position.z + 0.7]}
+                size={5.5}
+                intensity={1.5}
               />
             );
           });

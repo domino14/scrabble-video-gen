@@ -1,7 +1,9 @@
-// Board decals (W logo and optional custom logo)
+// Board decals (W logo and dog logo)
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import * as THREE from 'three';
+import { useLoader } from '@react-three/fiber';
+import { staticFile } from 'remotion';
 
 interface BoardDecalsProps {
   boardThickness?: number;
@@ -61,6 +63,23 @@ export const BoardDecals: React.FC<BoardDecalsProps> = ({
     return null;
   }
 
+  // Load dog logo texture
+  const [dogTexture, setDogTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      staticFile('logo512.png'),
+      (texture) => {
+        setDogTexture(texture);
+      },
+      undefined,
+      (error) => {
+        console.warn('Failed to load dog logo:', error);
+      }
+    );
+  }, []);
+
   return (
     <>
       {/* W logo on right side */}
@@ -75,6 +94,21 @@ export const BoardDecals: React.FC<BoardDecalsProps> = ({
           polygonOffsetUnits={-1}
         />
       </mesh>
+
+      {/* Dog logo on left side */}
+      {dogTexture && (
+        <mesh position={[-47, 0, z]}>
+          <planeGeometry args={[size, size]} />
+          <meshBasicMaterial
+            map={dogTexture}
+            transparent={true}
+            toneMapped={false}
+            polygonOffset={true}
+            polygonOffsetFactor={-1}
+            polygonOffsetUnits={-1}
+          />
+        </mesh>
+      )}
     </>
   );
 };

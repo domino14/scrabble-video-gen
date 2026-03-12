@@ -10,6 +10,7 @@ export interface CameraKeyframe {
   frame: number;
   position: [number, number, number];
   lookAt: [number, number, number];
+  linear?: boolean; // If true, use linear interpolation instead of easing
 }
 
 interface CameraControllerProps {
@@ -61,7 +62,8 @@ export const CameraController: React.FC<CameraControllerProps> = ({ keyframes })
 
   const [keyframe1, keyframe2] = getCurrentKeyframes();
 
-  // Simple linear interpolation with smooth easing
+  // Use linear interpolation if either keyframe requests it, otherwise use smooth easing
+  const useLinear = keyframe1.linear || keyframe2.linear;
   const progress = interpolate(
     frame,
     [keyframe1.frame, keyframe2.frame],
@@ -69,12 +71,13 @@ export const CameraController: React.FC<CameraControllerProps> = ({ keyframes })
     {
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
-      easing: (t) => {
-        // Smooth ease-in-out (no overshoot)
-        return t < 0.5
-          ? 4 * t * t * t
-          : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      }
+      easing: useLinear
+        ? (t) => t  // Linear - constant speed
+        : (t) => {  // Smooth ease-in-out
+            return t < 0.5
+              ? 4 * t * t * t
+              : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          }
     }
   );
 

@@ -18,7 +18,7 @@ export const BoardLabels: React.FC<BoardLabelsProps> = ({ labelColor = '#888888'
       {/* Column labels (A, B, C, ..., O) */}
       {Array.from({ length: gridSize }, (_, i) => {
         const letter = String.fromCharCode(65 + i); // A = 65
-        const x = i * SQUARE_SIZE - offset - SQUARE_SIZE / 4;
+        const x = i * SQUARE_SIZE - offset;
         const y = offset + SQUARE_SIZE * 0.8;
 
         return (
@@ -39,8 +39,8 @@ export const BoardLabels: React.FC<BoardLabelsProps> = ({ labelColor = '#888888'
       {Array.from({ length: gridSize }, (_, i) => {
         const number = (i + 1).toString();
         const textWidth = number.length * SQUARE_SIZE * 0.3;
-        const x = -offset - SQUARE_SIZE * 0.65 - textWidth;
-        const y = (gridSize - 1 - i) * SQUARE_SIZE - offset - SQUARE_SIZE / 4;
+        const x = -offset - SQUARE_SIZE * 0.5 - textWidth;
+        const y = (gridSize - 1 - i) * SQUARE_SIZE - offset;
 
         return (
           <Text
