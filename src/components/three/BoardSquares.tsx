@@ -69,10 +69,11 @@ export const BoardSquares: React.FC<BoardSquaresProps> = ({ boardLayout, boardCo
               {BONUS_LABELS[bonusChar] && (
                 <Text
                   position={[x, y, gridBottomZPos + 1 + 0.01]}
-                  fontSize={squareSize * 0.28}
+                  fontSize={squareSize * 0.35}
                   color={labelColor}
                   anchorX="center"
                   anchorY="middle"
+                  fontWeight={700}
                 >
                   {BONUS_LABELS[bonusChar]}
                 </Text>

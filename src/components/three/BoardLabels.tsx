@@ -18,17 +18,19 @@ export const BoardLabels: React.FC<BoardLabelsProps> = ({ labelColor = '#888888'
       {/* Column labels (A, B, C, ..., O) */}
       {Array.from({ length: gridSize }, (_, i) => {
         const letter = String.fromCharCode(65 + i); // A = 65
-        const x = i * SQUARE_SIZE - offset;
+        // Offset adjusted for troika-three-text vs TextGeometry rendering difference
+        const x = i * SQUARE_SIZE - offset - SQUARE_SIZE / 4 + 0.6;
         const y = offset + SQUARE_SIZE * 0.8;
 
         return (
           <Text
             key={`col-${i}`}
             position={[x, y, z]}
-            fontSize={SQUARE_SIZE * 0.375}
+            fontSize={SQUARE_SIZE * 0.45}
             color={labelColor}
             anchorX="center"
             anchorY="middle"
+            fontWeight={700}
           >
             {letter}
           </Text>
@@ -39,17 +41,19 @@ export const BoardLabels: React.FC<BoardLabelsProps> = ({ labelColor = '#888888'
       {Array.from({ length: gridSize }, (_, i) => {
         const number = (i + 1).toString();
         const textWidth = number.length * SQUARE_SIZE * 0.3;
-        const x = -offset - SQUARE_SIZE * 0.5 - textWidth;
-        const y = (gridSize - 1 - i) * SQUARE_SIZE - offset;
+        // Offsets adjusted for troika-three-text vs TextGeometry rendering difference
+        const x = -offset - SQUARE_SIZE * 0.65 - textWidth + 0.2;
+        const y = (gridSize - 1 - i) * SQUARE_SIZE - offset - SQUARE_SIZE / 4 + 1.3;
 
         return (
           <Text
             key={`row-${i}`}
             position={[x, y, z]}
-            fontSize={SQUARE_SIZE * 0.375}
+            fontSize={SQUARE_SIZE * 0.45}
             color={labelColor}
-            anchorX="center"
+            anchorX="left"
             anchorY="middle"
+            fontWeight={700}
           >
             {number}
           </Text>
