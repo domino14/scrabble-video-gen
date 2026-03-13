@@ -8,7 +8,6 @@ import { Board3DData } from '../types/board-3d-data';
 import { TimingScript } from '../schemas/timing-script.schema';
 import { ScrabbleBoard } from '../components/three/ScrabbleBoard';
 import { Tile } from '../components/three/Tile';
-import { TileAnimated } from '../components/three/TileAnimated';
 import { TileExchangeAnimated } from '../components/three/TileExchangeAnimated';
 import { TileToScorecardAnimated } from '../components/three/TileToScorecardAnimated';
 import { CameraController, CameraKeyframe } from '../components/three/CameraController';
@@ -16,7 +15,7 @@ import { TileGlow } from '../components/effects/TileGlow';
 import { Scorecard } from '../components/overlays/Scorecard';
 import { MoveNotation } from '../components/overlays/MoveNotation';
 import { TurnIndicator } from '../components/overlays/TurnIndicator';
-import { getBoardPosition, getRackPosition, getRackTileRotation, getOverviewCameraPosition, getOverviewCameraTarget, getZoomCameraPosition } from '../lib/board-coordinates';
+import { getBoardPosition, getRackPosition, getRackTileRotation, getZoomCameraPosition } from '../lib/board-coordinates';
 import { secondsToFrames } from '../lib/audio-utils';
 
 interface BoardSceneProps {
@@ -175,7 +174,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
             const cameraYOffset = 5; // Offset forward to center tiles in frame
 
             // MEASURED timing model (from user measurements):
-            // - Tile animation speed: 0.3 (hardcoded in TileAnimated)
+            // - Tile animation speed: 0.3 (set in animationSource.speed)
             // - Stagger: 8 / 0.3 ≈ 26.67 frames between tile starts
             // - Fall time: ~40 frames per tile to land
             const TILE_ANIMATION_SPEED = 0.3;
@@ -339,18 +338,62 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
           data={{
             ...currentBoardState,
             tiles: (() => {
-              if (showTileAnimation) {
-                // During animation: hide new tiles (they'll be shown as animated tiles)
-                return currentBoardState.tiles.filter(tile => !tile.isNew);
-              } else {
-                // Show all tiles that have been animated, hide tiles that haven't been animated yet
-                return currentBoardState.tiles.filter(tile => {
-                  if (!tile.isNew) return true; // Old tiles always visible
-                  // New tiles in boardStates[N] are from turn N-1
+              return currentBoardState.tiles.map(tile => {
+                // Old tiles always render statically
+                if (!tile.isNew) return tile;
+
+                // Check if animation is complete
+                if (!showTileAnimation || !playTilesCue) {
+                  // Animation complete - return as static tile only if turn was animated
                   const turnThatAddedTiles = currentStateIndex - 1;
-                  return animatedTurns.has(turnThatAddedTiles);
+                  return animatedTurns.has(turnThatAddedTiles) ? tile : null;
+                }
+
+                // Animation in progress - add animation metadata
+                // Find this tile in the displayed rack
+                const nextStateIndex = playTilesCue.turnIndex + 1;
+                const nextState = boardStates[nextStateIndex];
+                const playerIndex = playTilesCue.turnIndex % (nextState?.players.length || 2);
+                const displayedRack = nextState?.players[playerIndex]?.rack || [];
+
+                // Get all new tiles and find this tile's play index
+                const newTiles = currentBoardState.tiles.filter(t => t.isNew);
+                const playIndex = newTiles.findIndex(t => t.row === tile.row && t.col === tile.col);
+
+                // Match tiles in order to find rack index (handling duplicates)
+                const usedIndices = new Set<number>();
+                for (let i = 0; i < playIndex; i++) {
+                  const prevTile = newTiles[i];
+                  const idx = displayedRack.findIndex((letter, j) => {
+                    if (usedIndices.has(j)) return false;
+                    if (prevTile.blank) return letter === '?';
+                    return letter.toUpperCase() === prevTile.letter.toUpperCase();
+                  });
+                  if (idx !== -1) usedIndices.add(idx);
+                }
+
+                // Find current tile's rack index
+                let rackIndex = displayedRack.findIndex((letter, idx) => {
+                  if (usedIndices.has(idx)) return false;
+                  if (tile.blank) return letter === '?';
+                  return letter.toUpperCase() === tile.letter.toUpperCase();
                 });
-              }
+
+                // Fallback to play order if not found
+                if (rackIndex === -1) {
+                  rackIndex = playIndex;
+                }
+
+                return {
+                  ...tile,
+                  animationSource: {
+                    rackIndex,
+                    animationStartFrame: secondsToFrames(playTilesCue.time, fps),
+                    playIndex,
+                    speed: playTilesCue.action === 'play_tiles_with_zoom' ? 0.3 : (playTilesCue.speed || 1.0),
+                  }
+                };
+              }).filter(Boolean) as typeof currentBoardState.tiles;
             })()
           }}
           tileColor={tileColor}
@@ -363,12 +406,15 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
           <>
             {(() => {
               // Determine which cue to use for rack display
-              // Priority: end_rack > show_turn > active play_tiles animation > overview (look ahead) > activeCue
+              // Priority: end_rack > active animation > show_turn/play_tiles > overview (look ahead) > activeCue
               let cue;
               if (showEndRackAnimation) {
                 cue = activeCue;
+              } else if (showTileAnimation) {
+                // If tiles are animating, ALWAYS use the animation cue (even if activeCue moved on)
+                cue = playTilesCue;
               } else if (activeCue?.action === 'show_turn' || activeCue?.action === 'play_tiles' || activeCue?.action === 'play_tiles_with_zoom') {
-                // If activeCue is explicitly showing a turn/tiles, use it (not stale animation)
+                // If activeCue is explicitly showing a turn/tiles, use it
                 cue = activeCue;
               } else if (activeCue?.action === 'overview') {
                 // During overview, look ahead to the next show_turn or play_tiles cue
@@ -377,14 +423,26 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                   (c.action === 'show_turn' || c.action === 'play_tiles' || c.action === 'play_tiles_with_zoom')
                 );
                 cue = upcomingCue || null;
-              } else if (showTileAnimation) {
-                // Otherwise, if tiles are animating, use the animation cue
-                cue = playTilesCue;
               } else {
                 cue = activeCue;
               }
 
               if (!cue || cue.turnIndex === undefined) return null;
+
+              // Debug transitions (INERTIAL->RAPTNESS at 46-56s, LIVID->HAE at 54-60s)
+              const debugTransition = (currentTimeSeconds >= 46 && currentTimeSeconds <= 56) ||
+                                     (currentTimeSeconds >= 54 && currentTimeSeconds <= 60);
+              if (debugTransition) {
+                console.log(`Frame ${frame} (${currentTimeSeconds.toFixed(2)}s):`, {
+                  activeCueAction: activeCue?.action,
+                  activeCueTurn: activeCue?.turnIndex,
+                  cueAction: cue.action,
+                  cueTurn: cue.turnIndex,
+                  showTileAnimation,
+                  playTilesCueTurn: playTilesCue?.turnIndex,
+                  activeCueMatchesCue: activeCue === cue,
+                });
+              }
 
               // For end_rack, use the CURRENT state (which has the rack data)
               // For play_tiles/exchange, look ahead to the NEXT state
@@ -422,6 +480,11 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
 
               const player = state.players[playerIndex];
 
+              // Debug rack info during transition period
+              if (debugTransition) {
+                console.log(`  Rack: ${player?.rack?.join('') || 'NONE'}, playerIndex: ${playerIndex}, cueTurnIndex: ${cue.turnIndex}`);
+              }
+
               if (!player || !player.rack || player.rack.length === 0) {
                 // if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5) {
                 //   console.log('Turn 3 rack EMPTY - returning null:', { player: !!player, hasRack: !!player?.rack, rackLength: player?.rack?.length });
@@ -430,15 +493,22 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
               }
 
               // During animation, find which specific rack indices should be hidden (only tiles that have started animating)
-              // Also hide tiles that have been played (even after animation completes)
               const animatedRackIndices = new Set<number>();
 
               // If activeCue is play_tiles and animation is complete, hide all played tiles
-              if ((activeCue?.action === 'play_tiles' || activeCue?.action === 'play_tiles_with_zoom') && !showTileAnimation && activeCue.turnIndex !== undefined) {
+              // BUT only if we're showing the rack from the SAME turn (not a different rack)
+              if ((activeCue?.action === 'play_tiles' || activeCue?.action === 'play_tiles_with_zoom') &&
+                  !showTileAnimation &&
+                  activeCue.turnIndex !== undefined &&
+                  activeCue === cue) { // Only hide if showing rack from this same cue
                 const stateIndex = activeCue.turnIndex + 1;
                 const state = boardStates[stateIndex];
                 const playedTiles = state?.tiles.filter(t => t.isNew) || [];
                 const usedIndices = new Set<number>();
+
+                if (debugTransition) {
+                  console.log(`  POST-ANIM HIDING: playedTiles=${playedTiles.map(t => t.letter).join('')}, from turn ${activeCue.turnIndex}, rack=${player.rack.join('')}`);
+                }
 
                 playedTiles.forEach((tile) => {
                   const rackIndex = player.rack.findIndex((letter, idx) => {
@@ -485,6 +555,10 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                 const adjustedStagger = TILE_STAGGER / speed; // Lower speed = more frames between tiles
                 const animStartFrame = secondsToFrames(cue.time, fps);
                 const currentAnimFrame = frame - animStartFrame;
+
+                if (debugTransition) {
+                  console.log(`  DURING-ANIM HIDING: playedTiles=${playedTiles.map(t => t.letter).join('')}, from cue turn ${cue.turnIndex}, rack=${player.rack.join('')}, animStartFrame=${animStartFrame}, currentAnimFrame=${currentAnimFrame}`);
+                }
 
                 playedTiles.forEach((tile, playIndex) => {
                   // Calculate when this tile's animation starts (with adjusted stagger based on speed)
@@ -537,6 +611,11 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                 });
               }
 
+              if (debugTransition && animatedRackIndices.size > 0) {
+                const hiddenLetters = Array.from(animatedRackIndices).map(i => player.rack[i]).join('');
+                console.log(`  HIDING rack indices: [${Array.from(animatedRackIndices).join(', ')}] = letters [${hiddenLetters}]`);
+              }
+
               const rackTiles = player.rack.map((letter, index) => {
                 // Hide only the specific rack positions being animated
                 if (animatedRackIndices.has(index)) {
@@ -580,68 +659,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
           </>
         )}
 
-        {/* Tile placement animations */}
-        {showTileAnimation && currentBoardState.currentEvent && playTilesCue && (
-          <>
-            {(() => {
-              // Get the SAME rack that's being displayed (from next state)
-              const nextStateIndex = playTilesCue.turnIndex + 1;
-              const nextState = boardStates[nextStateIndex];
-              const playerIndex = playTilesCue.turnIndex % (nextState?.players.length || 2);
-              const displayedRack = nextState?.players[playerIndex]?.rack || [];
-
-              return currentBoardState.tiles
-                .filter(tile => tile.isNew)
-                .map((tile, playIndex) => {
-                  // Find this tile in the displayed rack (same rack shown to user)
-                  const usedIndices = new Set<number>();
-                  let rackIndex = -1;
-
-                  // Match tiles in order to handle duplicates
-                  for (let i = 0; i < playIndex; i++) {
-                    const prevTile = currentBoardState.tiles.filter(t => t.isNew)[i];
-                    const idx = displayedRack.findIndex((letter, j) => {
-                      if (usedIndices.has(j)) return false;
-                      if (prevTile.blank) return letter === '?';
-                      return letter.toUpperCase() === prevTile.letter.toUpperCase();
-                    });
-                    if (idx !== -1) usedIndices.add(idx);
-                  }
-
-                  // Now find current tile
-                  rackIndex = displayedRack.findIndex((letter, idx) => {
-                    if (usedIndices.has(idx)) return false;
-                    if (tile.blank) return letter === '?';
-                    return letter.toUpperCase() === tile.letter.toUpperCase();
-                  });
-
-                  // If not found, use play order
-                  if (rackIndex === -1) {
-                    rackIndex = playIndex;
-                  }
-
-                  const startPos = getRackPosition(rackIndex);
-                  const endPos = getBoardPosition(tile.row, tile.col);
-                  const animStartFrame = secondsToFrames(playTilesCue.time, fps);
-
-                  return (
-                    <TileAnimated
-                      key={`animated-${tile.row}-${tile.col}`}
-                      letter={tile.letter}
-                      value={tile.value}
-                      startPosition={[startPos.x, startPos.y, startPos.z]}
-                      endPosition={[endPos.x, endPos.y, endPos.z]}
-                      color={tileColor}
-                      blank={tile.blank}
-                      startFrame={animStartFrame}
-                      index={playIndex}
-                      speed={playTilesCue.action === 'play_tiles_with_zoom' ? 0.3 : (playTilesCue.speed || 1.0)}
-                    />
-                  );
-                });
-            })()}
-          </>
-        )}
+        {/* Tile placement animations - now handled directly by AnimatedBoardTile */}
 
         {/* Exchange animations - tiles fly away from rack */}
         {showExchangeAnimation && currentBoardState.currentEvent && activeCue.turnIndex !== undefined && (
@@ -790,8 +808,9 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
               <TileGlow
                 key={`glow-${tile.row}-${tile.col}-${index}`}
                 position={[position.x, position.y, position.z + 0.7]}
-                size={5.5}
-                intensity={1.5}
+                size={8}
+                intensity={3}
+                color="#FFFF00"
               />
             );
           });

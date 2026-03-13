@@ -8,6 +8,14 @@ export interface TileData {
   row: number;
   col: number;
   isNew?: boolean; // Newly placed this turn
+
+  // Animation source (only set during animation window)
+  animationSource?: {
+    rackIndex: number;           // Which rack position this came from
+    animationStartFrame: number; // Frame when animation started
+    playIndex: number;           // Order in played tiles (for stagger)
+    speed: number;               // Animation speed multiplier
+  };
 }
 
 export interface PlayerData {

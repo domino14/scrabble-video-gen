@@ -4,14 +4,13 @@ import React from 'react';
 import { Board3DData } from '../../types/board-3d-data';
 import { BoardBase } from './BoardBase';
 import { BoardSquares } from './BoardSquares';
-import { Tile } from './Tile';
+import { AnimatedBoardTile } from './AnimatedBoardTile';
 import { Rack } from './Rack';
 import { WoodTable } from './WoodTable';
 import { Lighting } from './Lighting';
 import { Environment } from './Environment';
 import { BoardLabels } from './BoardLabels';
 import { BoardDecals } from './BoardDecals';
-import { getBoardPosition } from '../../lib/board-coordinates';
 import { BOARD_COLOR_SCHEMES } from '../../lib/color-schemes';
 
 interface ScrabbleBoardProps {
@@ -52,19 +51,13 @@ export const ScrabbleBoard: React.FC<ScrabbleBoardProps> = ({
       <BoardDecals />
 
       {/* Tiles on board */}
-      {data.tiles.map((tile, index) => {
-        const position = getBoardPosition(tile.row, tile.col);
-        return (
-          <Tile
-            key={`${tile.row}-${tile.col}-${index}`}
-            letter={tile.letter}
-            value={tile.value}
-            position={[position.x, position.y, position.z]}
-            color={tileColor}
-            blank={tile.blank}
-          />
-        );
-      })}
+      {data.tiles.map((tile, index) => (
+        <AnimatedBoardTile
+          key={`${tile.row}-${tile.col}-${index}`}
+          tile={tile}
+          tileColor={tileColor}
+        />
+      ))}
 
       {/* Player rack */}
       <Rack />

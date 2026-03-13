@@ -20,18 +20,31 @@ export const TileGlow: React.FC<TileGlowProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Pulsing opacity
-  const opacity = pulse(frame, fps, 1) * 0.5 + 0.5; // 0.5 to 1.0
+  // Pulsing opacity - much stronger pulse
+  const opacity = pulse(frame, fps, 2) * 0.4 + 0.6; // 0.6 to 1.0, faster pulse
 
   return (
-    <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[size, size]} />
-      <meshBasicMaterial
-        color={color}
-        transparent
-        opacity={opacity * intensity}
-        depthWrite={false}
-      />
-    </mesh>
+    <>
+      {/* Main bright glow */}
+      <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[size, size]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={opacity * intensity}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Outer glow ring for more visibility */}
+      <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[size * 1.5, size * 1.5]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={opacity * intensity * 0.5}
+          depthWrite={false}
+        />
+      </mesh>
+    </>
   );
 };
