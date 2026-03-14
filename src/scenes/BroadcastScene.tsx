@@ -382,15 +382,19 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     currentBoardState,
   ]);
 
-  // Helper to calculate animated rack indices for a specific rack
-  const getAnimatedIndices = (rack: string[], playerIndex: number) => {
+  // Helper to calculate animated rack indices with their play order
+  // Returns a Map of rackIndex → playIndex for correct animation timing
+  const getAnimatedRackMap = (playerIndex: number): Map<number, number> => {
     if (!showTileAnimation || playingPlayerIndex !== playerIndex || !playTilesCue) {
-      return new Set<number>();
+      return new Map();
     }
 
-    const indices = new Set<number>();
+    // Get stable rack from boardStates for matching (PRE-PLAY rack)
+    const stateIndex = playTilesCue.turnIndex + 1;
+    const stableRack = boardStates[stateIndex]?.players[playerIndex]?.rack || [];
+
+    const rackIndexToPlayIndex = new Map<number, number>();
     const playedTiles = currentBoardState.tiles.filter((t) => t.isNew);
-    const usedIndices = new Set<number>();
     const TILE_STAGGER = 8;
     const speed =
       playTilesCue.action === "play_tiles_with_zoom"
@@ -400,27 +404,32 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     const startFrame = secondsToFrames(playTilesCue.time, fps);
     const currentAnimFrame = frame - startFrame;
 
+    // Build mapping by matching ALL tiles up to current animation frame
+    // This ensures correct matching for duplicate letters
+    const usedIndices = new Set<number>();
     playedTiles.forEach((tile, playIndex) => {
       const tileStartFrame = playIndex * adjustedStagger;
       if (currentAnimFrame >= tileStartFrame) {
-        const rackIndex = rack.findIndex((letter, idx) => {
+        // Find this tile's rack index, excluding already-used indices
+        const rackIndex = stableRack.findIndex((letter, idx) => {
           if (usedIndices.has(idx)) return false;
           if (tile.blank) return letter === "?";
           return letter.toUpperCase() === tile.letter.toUpperCase();
         });
+
         if (rackIndex !== -1) {
-          indices.add(rackIndex);
+          rackIndexToPlayIndex.set(rackIndex, playIndex);
           usedIndices.add(rackIndex);
         }
       }
     });
 
-    return indices;
+    return rackIndexToPlayIndex;
   };
 
   // Convert racks to tile data with animation state
   const player1RackTiles = useMemo(() => {
-    const animatedIndices = getAnimatedIndices(player0Rack, 0);
+    const animatedRackMap = getAnimatedRackMap(0);
 
     return player0Rack.map((letter, i) => {
       const isBlank =
@@ -428,10 +437,8 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
         (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
       const value = isBlank ? 0 : getLetterValue(letter);
 
-      const isAnimated = animatedIndices.has(i);
-      const playIndex = isAnimated
-        ? Array.from(animatedIndices).filter((idx) => idx < i).length
-        : 0;
+      const playIndex = animatedRackMap.get(i);
+      const isAnimated = playIndex !== undefined;
 
       return {
         letter,
@@ -450,10 +457,10 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
             : undefined,
       };
     });
-  }, [player0Rack, playingPlayerIndex, showTileAnimation, playTilesCue, currentBoardState.tiles, frame, fps]);
+  }, [player0Rack, playingPlayerIndex, showTileAnimation, playTilesCue, boardStates, currentBoardState.tiles, frame, fps]);
 
   const player2RackTiles = useMemo(() => {
-    const animatedIndices = getAnimatedIndices(player1Rack, 1);
+    const animatedRackMap = getAnimatedRackMap(1);
 
     return player1Rack.map((letter, i) => {
       const isBlank =
@@ -461,10 +468,8 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
         (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
       const value = isBlank ? 0 : getLetterValue(letter);
 
-      const isAnimated = animatedIndices.has(i);
-      const playIndex = isAnimated
-        ? Array.from(animatedIndices).filter((idx) => idx < i).length
-        : 0;
+      const playIndex = animatedRackMap.get(i);
+      const isAnimated = playIndex !== undefined;
 
       return {
         letter,
@@ -483,25 +488,28 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
             : undefined,
       };
     });
-  }, [player1Rack, playingPlayerIndex, showTileAnimation, playTilesCue, currentBoardState.tiles, frame, fps]);
+  }, [player1Rack, playingPlayerIndex, showTileAnimation, playTilesCue, boardStates, currentBoardState.tiles, frame, fps]);
 
-  // Debug: comprehensive logging
-  if (frame % 30 === 0 && frame <= 300) {
-    console.log(`\n=== Frame ${frame} (${currentTimeSeconds.toFixed(2)}s) ===`);
-    console.log('Active cue:', activeCue?.action, 'turn:', activeCue?.turnIndex);
-    console.log('Play tiles cue:', playTilesCue?.turnIndex, 'animating:', showTileAnimation);
-    console.log('Playing player index:', playingPlayerIndex);
-    console.log('\nBoard States in memory:');
-    boardStates.slice(0, 4).forEach((state, i) => {
-      console.log(`  State ${i}: P0=${state.players[0]?.rack?.join('') || 'EMPTY'}, P1=${state.players[1]?.rack?.join('') || 'EMPTY'}`);
-    });
-    console.log('\nDisplayed racks:');
-    console.log('  Player0 (player1RackTiles):', player0Rack.join(''), '→', player1RackTiles.map(t => t.letter).join(''));
-    console.log('  Player1 (player2RackTiles):', player1Rack.join(''), '→', player2RackTiles.map(t => t.letter).join(''));
-    const p0Animated = player1RackTiles.filter(t => t.animationState).map(t => t.letter);
-    const p1Animated = player2RackTiles.filter(t => t.animationState).map(t => t.letter);
-    if (p0Animated.length > 0) console.log('  P0 animating:', p0Animated.join(''));
-    if (p1Animated.length > 0) console.log('  P1 animating:', p1Animated.join(''));
+  // Debug: comprehensive logging with duplicate letter tracking
+  if (frame % 5 === 0 && showTileAnimation && playTilesCue?.turnIndex === 3) {
+    // Focus on turn 3 (INCENSE) every 5 frames during animation
+    console.log(`\n=== Frame ${frame} (turn ${playTilesCue.turnIndex}) ===`);
+    const stateIndex = playTilesCue.turnIndex + 1;
+    const stableRack = boardStates[stateIndex]?.players[playingPlayerIndex]?.rack || [];
+    const displayedRack = playingPlayerIndex === 0 ? player0Rack : player1Rack;
+
+    console.log('Stable rack:', stableRack.join(''));
+    console.log('Displayed rack:', displayedRack.join(''));
+    console.log('Racks match:', stableRack.join('') === displayedRack.join(''));
+
+    const playedTiles = currentBoardState.tiles.filter(t => t.isNew);
+    console.log('Played tiles:', playedTiles.map(t => `${t.letter}${t.blank ? '(blank)' : ''}`).join(', '));
+
+    const rackTiles = playingPlayerIndex === 0 ? player1RackTiles : player2RackTiles;
+    const animating = rackTiles
+      .map((t, i) => ({ idx: i, letter: t.letter, animating: !!t.animationState }))
+      .filter(t => t.animating);
+    console.log('Animating indices:', animating.map(t => `${t.idx}:${t.letter}`).join(', '));
   }
 
   // Track the on-turn player and find the play_tiles cue for their current turn
@@ -647,7 +655,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
                   near: 0.1,
                   far: 100,
                 }}
-                style={{ backgroundColor: "#0a0a0a" }}
+                style={{ backgroundColor: "#B5A090" }}
                 onCreated={({ camera }) => {
                   // Look up at the rack tiles
                   camera.lookAt(0, -38, -5);
@@ -742,7 +750,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
                   near: 0.1,
                   far: 100,
                 }}
-                style={{ backgroundColor: "#0a0a0a" }}
+                style={{ backgroundColor: "#B5A090" }}
                 onCreated={({ camera }) => {
                   // Look up at the rack tiles
                   camera.lookAt(0, -38, -5);

@@ -95,11 +95,11 @@ export const AnimatedRackTile: React.FC<AnimatedRackTileProps> = ({
   const y = interpolate(clampedProgress, [0, 1], [rackPos.y, exitY]);
   const z = interpolate(clampedProgress, [0, 1], [rackPos.z, exitZ]);
 
-  // Maintain rack tilt during flight, add slight rotation
-  const rotationZ = interpolate(clampedProgress, [0, 1], [0, Math.PI * 0.2]);
+  // Flashy vertical spin during flight (like a coin flip)
+  const rotationY = interpolate(clampedProgress, [0, 1], [0, Math.PI * 2]); // Full 360° spin
 
   return (
-    <group position={[x, y, z]} rotation={[theta, 0, rotationZ]}>
+    <group position={[x, y, z]} rotation={[theta, rotationY, 0]}>
       <Tile
         letter={letter}
         value={value}

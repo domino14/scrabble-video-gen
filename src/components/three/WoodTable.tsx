@@ -34,7 +34,7 @@ export const WoodTable: React.FC = () => {
           clearcoat={0.15}
           clearcoatRoughness={0.4}
           normalMap={normalMap}
-          normalScale={new THREE.Vector2(0.35, 0.35)}
+          normalScale={new THREE.Vector2(1.0, 1.0)}
           envMapIntensity={0.7}
         />
       </mesh>

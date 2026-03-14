@@ -76,6 +76,7 @@ export function computeRemainingTiles(
 
 /**
  * Format remaining tiles as a sorted string for display (e.g., "A A B D F G...")
+ * If more than 60 tiles, removes spaces to save room
  */
 export function formatRemainingTiles(remaining: Record<string, number>): string {
   const tiles: string[] = [];
@@ -92,5 +93,7 @@ export function formatRemainingTiles(remaining: Record<string, number>): string 
     }
   }
 
-  return tiles.join(' ');
+  // If more than 60 tiles, stick them together (no spaces)
+  const separator = tiles.length > 60 ? '' : ' ';
+  return tiles.join(separator);
 }

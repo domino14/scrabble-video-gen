@@ -72,17 +72,13 @@ export const AnimatedBoardTile: React.FC<AnimatedBoardTileProps> = ({
   const arcHeight = createArcTrajectory(clampedProgress, 15);
   const z = baseZ + arcHeight;
 
-  // Rotation during flight: start tilted (rack angle), end flat
+  // Rotation during flight: start tilted (rack angle), end flat, with flashy vertical spin
   const rackTiltAngle = getRackTileRotation();
   const rotationX = interpolate(clampedProgress, [0, 1], [rackTiltAngle, 0]);
-  const rotationZ = interpolate(
-    clampedProgress,
-    [0, 0.5, 1],
-    [0, Math.PI * 0.5, 0]
-  );
+  const rotationY = interpolate(clampedProgress, [0, 1], [0, Math.PI * 2]); // Full 360° spin
 
   return (
-    <group position={[x, y, z]} rotation={[rotationX, 0, rotationZ]}>
+    <group position={[x, y, z]} rotation={[rotationX, rotationY, 0]}>
       <Tile
         letter={tile.letter}
         value={tile.value}
