@@ -16,6 +16,9 @@ export const videoConfigSchema = z.object({
   highlightMoves: z.array(z.number().int().min(0))
     .default([])
     .describe('Turn indices to highlight with extended analysis'),
+  viewMode: z.enum(['cinematic', 'broadcast'])
+    .default('cinematic')
+    .describe('View mode: cinematic (3D oblique with camera movements) or broadcast (top-down with player widgets)'),
 });
 
 export type VideoConfig = z.infer<typeof videoConfigSchema>;

@@ -6,6 +6,7 @@ import { VideoConfig } from '../schemas/video-config.schema';
 import { convertGameHistoryToStates } from '../lib/game-converter';
 import { IntroScene } from '../scenes/IntroScene';
 import { BoardScene } from '../scenes/BoardScene';
+import { BroadcastScene } from '../scenes/BroadcastScene';
 import { OutroScene } from '../scenes/OutroScene';
 
 interface GameAnalysisVideoProps extends VideoConfig {}
@@ -17,6 +18,7 @@ export const GameAnalysisVideo: React.FC<GameAnalysisVideoProps> = ({
   tileColor,
   boardColor,
   highlightMoves,
+  viewMode = 'cinematic',
 }) => {
   // Convert game history to board states
   const boardStates = useMemo(() => {
@@ -36,12 +38,21 @@ export const GameAnalysisVideo: React.FC<GameAnalysisVideoProps> = ({
 
       {/* Board Scene - offset by intro duration */}
       <Sequence from={INTRO_DURATION}>
-        <BoardScene
-          boardStates={boardStates}
-          timingScript={timingScript}
-          tileColor={tileColor}
-          boardColor={boardColor}
-        />
+        {viewMode === 'broadcast' ? (
+          <BroadcastScene
+            boardStates={boardStates}
+            timingScript={timingScript}
+            tileColor={tileColor}
+            boardColor={boardColor}
+          />
+        ) : (
+          <BoardScene
+            boardStates={boardStates}
+            timingScript={timingScript}
+            tileColor={tileColor}
+            boardColor={boardColor}
+          />
+        )}
       </Sequence>
 
       {/* Optional voiceover audio */}

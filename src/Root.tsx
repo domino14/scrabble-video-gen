@@ -31,6 +31,7 @@ export const RemotionRoot: React.FC = () => {
           tileColor: "yellow" as const,
           boardColor: "slate" as const,
           highlightMoves: [3], // Highlight the bingo move (INCENSE)
+          viewMode: "broadcast" as const, // Switch to "broadcast" for top-down view
         }}
         calculateMetadata={async ({ props }) => {
           // Calculate video duration based on timing script

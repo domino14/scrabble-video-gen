@@ -6,6 +6,8 @@ export const timingCueSchema = z.object({
     .describe('Animation action to perform'),
   turnIndex: z.number().int().min(0).optional()
     .describe('Which turn to show (for show_turn, play_tiles, highlight)'),
+  playerIndex: z.number().int().min(0).max(1).optional()
+    .describe('Which player is making this move (0 or 1). Source of truth from game history event.playerIndex. Required for play_tiles actions to properly animate the correct player\'s rack.'),
   targetSquare: z.object({
     row: z.number().int().min(0).max(14),
     col: z.number().int().min(0).max(14),

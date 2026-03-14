@@ -7,42 +7,50 @@
     {
       "time": 1.5,
       "action": "show_turn",
-      "turnIndex": 0
+      "turnIndex": 0,
+      "playerIndex": 0
     },
     {
       "time": 2.0,
       "action": "play_tiles",
-      "turnIndex": 0
+      "turnIndex": 0,
+      "playerIndex": 0
     },
     {
       "time": 4.0,
       "action": "show_turn",
-      "turnIndex": 1
+      "turnIndex": 1,
+      "playerIndex": 1
     },
     {
       "time": 4.5,
       "action": "play_tiles",
-      "turnIndex": 1
+      "turnIndex": 1,
+      "playerIndex": 1
     },
     {
       "time": 6.5,
       "action": "show_turn",
-      "turnIndex": 2
+      "turnIndex": 2,
+      "playerIndex": 0
     },
     {
       "time": 7.0,
       "action": "play_tiles",
-      "turnIndex": 2
+      "turnIndex": 2,
+      "playerIndex": 0
     },
     {
       "time": 9.0,
       "action": "show_turn",
-      "turnIndex": 3
+      "turnIndex": 3,
+      "playerIndex": 1
     },
     {
       "time": 9.5,
       "action": "play_tiles",
-      "turnIndex": 3
+      "turnIndex": 3,
+      "playerIndex": 1
     },
     {
       "time": 11.5,
