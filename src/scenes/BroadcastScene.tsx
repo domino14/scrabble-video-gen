@@ -305,7 +305,8 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
         return boardStates[stateIndex]?.players[playerIndex];
       }
 
-      // No upcoming turns - use their most recent completed turn
+      // No upcoming turns - show POST-PLAY rack from most recent completed turn
+      // (PRE-PLAY rack with played tiles removed)
       const completedCue = timingScript.cues
         .filter((c) => {
           if (
@@ -326,7 +327,38 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
 
       if (completedCue && completedCue.turnIndex !== undefined) {
         const stateIndex = completedCue.turnIndex + 1;
-        return boardStates[stateIndex]?.players[playerIndex];
+        const state = boardStates[stateIndex];
+        const player = state?.players[playerIndex];
+
+        if (!player) return null;
+
+        // Compute POST-PLAY rack by removing played tiles
+        const prePlayRack = player.rack || [];
+        const playedTiles = state?.currentEvent?.playedTiles || '';
+
+        // Parse played tiles (e.g., "FEE." -> ['F', 'E', 'E'])
+        const tilesPlayed = playedTiles
+          .split('')
+          .filter(c => c !== '.')
+          .map(c => c === '?' ? '?' : c);
+
+        // Remove played tiles from rack
+        const postPlayRack = [...prePlayRack];
+        tilesPlayed.forEach(playedLetter => {
+          const idx = postPlayRack.findIndex(rackLetter => {
+            if (playedLetter === '?') return rackLetter === '?';
+            return rackLetter.toUpperCase() === playedLetter.toUpperCase();
+          });
+          if (idx !== -1) {
+            postPlayRack.splice(idx, 1);
+          }
+        });
+
+        // Return player with POST-PLAY rack
+        return {
+          ...player,
+          rack: postPlayRack,
+        };
       }
 
       return null;
