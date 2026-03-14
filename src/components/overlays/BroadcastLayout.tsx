@@ -8,6 +8,8 @@ import { RemainingTilesWidget } from './RemainingTilesWidget';
 import { MoveNotation } from './MoveNotation';
 import { GameInfoWidget } from './GameInfoWidget';
 import { BroadcastScoreWidget } from './BroadcastScoreWidget';
+import { PlayerAvatarWidget } from './PlayerAvatarWidget';
+import { ExpressionType } from '../../types/avatar';
 
 interface BroadcastLayoutProps {
   boardState: Board3DData;
@@ -15,6 +17,11 @@ interface BroadcastLayoutProps {
   tileColor?: string;
   showMoveNotation?: boolean;
   moveNotationStartFrame?: number;
+  player0Expression?: ExpressionType;
+  player0ExpressionIntensity?: number;
+  player1Expression?: ExpressionType;
+  player1ExpressionIntensity?: number;
+  currentFrame: number;
 }
 
 export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
@@ -23,6 +30,11 @@ export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
   tileColor = 'orange',
   showMoveNotation = false,
   moveNotationStartFrame = 0,
+  player0Expression = 'idle',
+  player0ExpressionIntensity = 0,
+  player1Expression = 'idle',
+  player1ExpressionIntensity = 0,
+  currentFrame,
 }) => {
   const player1OnTurn = tilePoolBoardState.players[0]?.onturn || false;
 
@@ -47,6 +59,66 @@ export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
         leagueName="NWL League"
         season="Season 9"
       />
+
+      {/* Avatar camera widgets */}
+      {boardState.players[0] && (
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '370px',
+              left: '85px',
+              width: '255px',
+              height: '255px',
+              border: '3px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+              backgroundColor: '#D3D3D3',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <PlayerAvatarWidget
+              nickname={boardState.players[0].nickname}
+              expression={player0Expression}
+              expressionIntensity={player0ExpressionIntensity}
+              currentFrame={currentFrame}
+              playerIndex={0}
+            />
+          </div>
+        </AbsoluteFill>
+      )}
+      {boardState.players[1] && (
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '370px',
+              right: '85px',
+              width: '255px',
+              height: '255px',
+              border: '3px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+              backgroundColor: '#D3D3D3',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <PlayerAvatarWidget
+              nickname={boardState.players[1].nickname}
+              expression={player1Expression}
+              expressionIntensity={player1ExpressionIntensity}
+              currentFrame={currentFrame}
+              playerIndex={1}
+            />
+          </div>
+        </AbsoluteFill>
+      )}
 
       {/* Score widgets */}
       {boardState.players[0] && (

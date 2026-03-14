@@ -13,6 +13,7 @@ import { Rack } from "../components/three/Rack";
 import { AnimatedRackTile } from "../components/three/AnimatedRackTile";
 import { getRackPosition, getRackTileRotation } from "../lib/board-coordinates";
 import { secondsToFrames } from "../lib/audio-utils";
+import { ExpressionType } from "../types/avatar";
 
 interface BroadcastSceneProps {
   boardStates: Board3DData[];
@@ -67,6 +68,108 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
   const { fps } = useVideoConfig();
 
   const currentTimeSeconds = frame / fps;
+
+  // Derive player expressions from recent plays
+  const usePlayerExpressions = (
+    timingScript: TimingScript,
+    boardStates: Board3DData[],
+    currentTimeSeconds: number,
+    fps: number
+  ): {
+    player0Expression: ExpressionType;
+    player0Intensity: number;
+    player1Expression: ExpressionType;
+    player1Intensity: number;
+  } => {
+    return useMemo(() => {
+      // Find plays within last 2 seconds
+      const recentPlays = timingScript.cues.filter(cue => {
+        if (cue.action !== 'play_tiles' && cue.action !== 'play_tiles_with_zoom') return false;
+        if (cue.turnIndex === undefined) return false;
+        const timeSinceCue = currentTimeSeconds - cue.time;
+        return timeSinceCue >= 0 && timeSinceCue <= 2;
+      });
+
+      let p0Expression: ExpressionType = 'idle';
+      let p0Intensity = 0;
+      let p1Expression: ExpressionType = 'idle';
+      let p1Intensity = 0;
+
+      // Check most recent play for expression triggers
+      const mostRecentPlay = recentPlays.at(-1);
+      if (mostRecentPlay && mostRecentPlay.turnIndex !== undefined) {
+        const stateIndex = mostRecentPlay.turnIndex + 1;
+        const state = boardStates[stateIndex];
+        const event = state?.currentEvent;
+
+        if (event) {
+          // Determine who played
+          const playerIndex = mostRecentPlay.playerIndex !== undefined
+            ? mostRecentPlay.playerIndex
+            : mostRecentPlay.turnIndex % 2;
+
+          // Calculate fade in/out based on time since play
+          const timeSincePlay = currentTimeSeconds - mostRecentPlay.time;
+          const fadeInDuration = 0.5; // 0.5 seconds fade in
+          const holdDuration = 2.0; // 2 seconds hold
+          const fadeOutDuration = 0.5; // 0.5 seconds fade out
+
+          let intensity = 0;
+          if (timeSincePlay < fadeInDuration) {
+            // Fade in
+            intensity = timeSincePlay / fadeInDuration;
+          } else if (timeSincePlay < holdDuration) {
+            // Hold
+            intensity = 1;
+          } else if (timeSincePlay < holdDuration + fadeOutDuration) {
+            // Fade out
+            intensity = 1 - ((timeSincePlay - holdDuration) / fadeOutDuration);
+          }
+
+          // Big score (bingo or 50+ points)
+          if (event.isBingo || event.score >= 50) {
+            // Player who scored is happy
+            if (playerIndex === 0) {
+              p0Expression = 'happy';
+              p0Intensity = intensity;
+            } else {
+              p1Expression = 'happy';
+              p1Intensity = intensity;
+            }
+
+            // Opponent gets angry if score >= 60, otherwise sad
+            if (event.score >= 60) {
+              if (playerIndex === 0) {
+                p1Expression = 'angry';
+                p1Intensity = intensity * 0.8;
+              } else {
+                p0Expression = 'angry';
+                p0Intensity = intensity * 0.8;
+              }
+            } else {
+              if (playerIndex === 0) {
+                p1Expression = 'sad';
+                p1Intensity = intensity * 0.6;
+              } else {
+                p0Expression = 'sad';
+                p0Intensity = intensity * 0.6;
+              }
+            }
+          }
+        }
+      }
+
+      return {
+        player0Expression: p0Expression,
+        player0Intensity: p0Intensity,
+        player1Expression: p1Expression,
+        player1Intensity: p1Intensity,
+      };
+    }, [timingScript, boardStates, currentTimeSeconds, fps]);
+  };
+
+  const { player0Expression, player0Intensity, player1Expression, player1Intensity } =
+    usePlayerExpressions(timingScript, boardStates, currentTimeSeconds, fps);
 
   // Find active cue
   const activeCue = useMemo(() => {
@@ -799,6 +902,11 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
         moveNotationStartFrame={
           activeCue ? secondsToFrames(activeCue.time, fps) : 0
         }
+        player0Expression={player0Expression}
+        player0ExpressionIntensity={player0Intensity}
+        player1Expression={player1Expression}
+        player1ExpressionIntensity={player1Intensity}
+        currentFrame={frame}
       />
     </>
   );
