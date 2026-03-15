@@ -1,6 +1,6 @@
 // Traits for face generation
 export interface AvatarTraits {
-  skinTone: 'light' | 'medium' | 'tan' | 'dark' | 'deep';
+  skinTone: 'light' | 'fair' | 'medium' | 'warm' | 'tan' | 'dark' | 'deep';
   glasses: boolean;
   beard: boolean;
   hat: { type: 'none' | 'cap' | 'beanie' | 'cowboy' | 'fedora'; color: string };

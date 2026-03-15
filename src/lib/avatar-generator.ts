@@ -3,7 +3,7 @@ import { AvatarTraits } from '../types/avatar';
 // Predefined configurations for known players
 const KNOWN_PLAYERS: Record<string, AvatarTraits> = {
   cesar: {
-    skinTone: 'light',
+    skinTone: 'warm',
     glasses: true,
     beard: true,
     hat: { type: 'none', color: '' },
@@ -27,7 +27,9 @@ const KNOWN_PLAYERS: Record<string, AvatarTraits> = {
 // Skin tone color mappings
 export const SKIN_TONES: Record<AvatarTraits['skinTone'], string> = {
   light: '#FFD7BA',
+  fair: '#F4C0A8',      // Between light and medium
   medium: '#E8B896',
+  warm: '#F0C4A6',      // Subtly warmer than fair
   tan: '#D4A574',
   dark: '#B8845C',
   deep: '#8B5A3C',
@@ -72,7 +74,7 @@ function inferGender(nickname: string): AvatarTraits['gender'] {
 function generateTraitsFromHash(nickname: string): AvatarTraits {
   const hash = hashString(nickname);
 
-  const skinTones: AvatarTraits['skinTone'][] = ['light', 'medium', 'tan', 'dark', 'deep'];
+  const skinTones: AvatarTraits['skinTone'][] = ['light', 'fair', 'medium', 'warm', 'tan', 'dark', 'deep'];
   const faceShapes: AvatarTraits['faceShape'][] = ['narrow', 'oval', 'round'];
   const hatTypes: AvatarTraits['hat']['type'][] = ['none', 'cap', 'beanie', 'cowboy', 'fedora'];
   const hatColors = ['black', 'red', 'blue', 'green', 'brown'];

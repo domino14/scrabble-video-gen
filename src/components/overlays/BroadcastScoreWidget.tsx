@@ -78,7 +78,7 @@ export const BroadcastScoreWidget: React.FC<BroadcastScoreWidgetProps> = ({
               : 'rgba(30, 30, 30, 0.9)',
             border: '3px solid ' + (player.onturn ? '#4CAF50' : 'rgba(255, 255, 255, 0.3)'),
             borderRadius: '12px',
-            padding: '12px',
+            padding: '8px 12px',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
             display: 'flex',
             alignItems: 'center',
@@ -90,7 +90,7 @@ export const BroadcastScoreWidget: React.FC<BroadcastScoreWidgetProps> = ({
             style={{
               fontFamily: 'Arial, sans-serif',
               color: '#FFD700',
-              fontSize: '72px',
+              fontSize: '48px',
               fontWeight: 'bold',
               textShadow: '3px 3px 6px rgba(0, 0, 0, 0.8)',
               letterSpacing: '2px',

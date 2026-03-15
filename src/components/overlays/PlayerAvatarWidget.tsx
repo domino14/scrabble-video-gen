@@ -42,6 +42,7 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
   // Eyebrows rendering based on expression
   const renderEyebrows = () => {
     const baseY = 40 - 16;
+    const browWidth = traits.gender === 'female' ? 1.8 : 2.5; // Thinner for women
 
     if (expression === 'happy') {
       // Raised, curved eyebrows
@@ -51,14 +52,14 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
           <path
             d={`M ${50 - 18} ${baseY - 2 * intensity} Q ${50 - 12} ${baseY - 4 * intensity} ${50 - 6} ${baseY - 2 * intensity}`}
             stroke="#4A3428"
-            strokeWidth="2.5"
+            strokeWidth={browWidth}
             fill="none"
             strokeLinecap="round"
           />
           <path
             d={`M ${50 + 6} ${baseY - 2 * intensity} Q ${50 + 12} ${baseY - 4 * intensity} ${50 + 18} ${baseY - 2 * intensity}`}
             stroke="#4A3428"
-            strokeWidth="2.5"
+            strokeWidth={browWidth}
             fill="none"
             strokeLinecap="round"
           />
@@ -74,13 +75,13 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
           <path
             d={`M ${50 - 18} ${baseY + 2 * intensity} L ${50 - 6} ${baseY - 1 * intensity}`}
             stroke="#4A3428"
-            strokeWidth="2.5"
+            strokeWidth={browWidth}
             strokeLinecap="round"
           />
           <path
             d={`M ${50 + 18} ${baseY + 2 * intensity} L ${50 + 6} ${baseY - 1 * intensity}`}
             stroke="#4A3428"
-            strokeWidth="2.5"
+            strokeWidth={browWidth}
             strokeLinecap="round"
           />
         </>
@@ -94,13 +95,13 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
           <path
             d={`M ${50 - 18} ${baseY} L ${50 - 6} ${baseY - 2}`}
             stroke="#4A3428"
-            strokeWidth="2.5"
+            strokeWidth={browWidth}
             strokeLinecap="round"
           />
           <path
             d={`M ${50 + 18} ${baseY} L ${50 + 6} ${baseY - 2}`}
             stroke="#4A3428"
-            strokeWidth="2.5"
+            strokeWidth={browWidth}
             strokeLinecap="round"
           />
         </>
@@ -115,13 +116,13 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
           <path
             d={`M ${50 - 18} ${baseY + 2 * intensity} L ${50 - 6} ${baseY - 4 * intensity}`}
             stroke="#4A3428"
-            strokeWidth="3"
+            strokeWidth={browWidth * 1.2}
             strokeLinecap="round"
           />
           <path
             d={`M ${50 + 18} ${baseY + 2 * intensity} L ${50 + 6} ${baseY - 4 * intensity}`}
             stroke="#4A3428"
-            strokeWidth="3"
+            strokeWidth={browWidth * 1.2}
             strokeLinecap="round"
           />
         </>
@@ -134,14 +135,14 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
         <path
           d={`M ${50 - 18} ${baseY} Q ${50 - 12} ${baseY - 1} ${50 - 6} ${baseY}`}
           stroke="#4A3428"
-          strokeWidth="2.5"
+          strokeWidth={browWidth}
           fill="none"
           strokeLinecap="round"
         />
         <path
           d={`M ${50 + 6} ${baseY} Q ${50 + 12} ${baseY - 1} ${50 + 18} ${baseY}`}
           stroke="#4A3428"
-          strokeWidth="2.5"
+          strokeWidth={browWidth}
           fill="none"
           strokeLinecap="round"
         />
@@ -246,6 +247,24 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
     }
 
     // Normal eyes (idle) with whites and highlights
+    if (traits.gender === 'female') {
+      // Horizontal oval eyes for women
+      return (
+        <>
+          {/* Eye whites - horizontal oval */}
+          <ellipse cx={50 - 12} cy={baseY} rx={8} ry={6} fill="white" />
+          <ellipse cx={50 + 12} cy={baseY} rx={8} ry={6} fill="white" />
+          {/* Pupils - horizontal oval */}
+          <ellipse cx={50 - 12} cy={baseY} rx={6} ry={4.5} fill="#2C1810" />
+          <ellipse cx={50 + 12} cy={baseY} rx={6} ry={4.5} fill="#2C1810" />
+          {/* Highlights */}
+          <ellipse cx={50 - 9} cy={baseY - 1.5} rx={2} ry={1.5} fill="white" />
+          <ellipse cx={50 + 15} cy={baseY - 1.5} rx={2} ry={1.5} fill="white" />
+        </>
+      );
+    }
+
+    // Round eyes for men and neutral
     return (
       <>
         {/* Eye whites */}
@@ -386,6 +405,20 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
       );
     }
     return null;
+  };
+
+  // Nose rendering - simple curve
+  const renderNose = () => {
+    const noseY = 40 + 2;
+    return (
+      <path
+        d={`M ${50 - 3} ${noseY} Q ${50} ${noseY + 6} ${50 + 3} ${noseY}`}
+        stroke={skinColor}
+        strokeWidth="2.5"
+        fill="none"
+        filter="brightness(0.85)"
+      />
+    );
   };
 
   // Glasses rendering
@@ -597,52 +630,92 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
 
     switch (hairType) {
       case 'short':
-        // Short cropped hair
+        // Short cropped hair - covers more of the head
         return (
           <g>
+            {/* Main hair mass */}
             <ellipse
               cx={50}
-              cy={headTop + 5}
-              rx={headWidth + 2}
-              ry={8}
+              cy={headTop + 6}
+              rx={headWidth + 3}
+              ry={12}
               fill={hairColor}
             />
-            {/* Hairline detail */}
+            {/* Hair extends down sides */}
             <path
-              d={`M ${50 - headWidth - 2} ${headTop + 8} Q ${50} ${headTop + 6} ${50 + headWidth + 2} ${headTop + 8}`}
-              stroke={hairColor}
-              strokeWidth="2"
-              fill="none"
+              d={`
+                M ${50 - headWidth - 3} ${headTop + 10}
+                Q ${50 - headWidth - 2} ${headTop + 14} ${50 - headWidth} ${headTop + 16}
+                L ${50 - headWidth + 2} ${headTop + 15}
+                Q ${50 - headWidth + 1} ${headTop + 12} ${50 - headWidth + 1} ${headTop + 10}
+                Z
+              `}
+              fill={hairColor}
+            />
+            <path
+              d={`
+                M ${50 + headWidth + 3} ${headTop + 10}
+                Q ${50 + headWidth + 2} ${headTop + 14} ${50 + headWidth} ${headTop + 16}
+                L ${50 + headWidth - 2} ${headTop + 15}
+                Q ${50 + headWidth - 1} ${headTop + 12} ${50 + headWidth - 1} ${headTop + 10}
+                Z
+              `}
+              fill={hairColor}
             />
           </g>
         );
 
       case 'long':
-        // Long flowing hair
+        // Long flowing hair - continuous shape
         return (
           <g>
-            {/* Top */}
+            {/* Hair top/crown */}
             <ellipse
               cx={50}
-              cy={headTop + 5}
-              rx={headWidth + 3}
-              ry={10}
+              cy={headTop + 4}
+              rx={headWidth + 4}
+              ry={12}
               fill={hairColor}
             />
-            {/* Side strands */}
-            <ellipse
-              cx={50 - headWidth - 3}
-              cy={40}
-              rx={6}
-              ry={20}
+            {/* Continuous flowing hair sides - longer and smoother */}
+            <path
+              d={`
+                M ${50 - headWidth - 4} ${headTop + 10}
+                Q ${50 - headWidth - 7} ${40 + 5} ${50 - headWidth - 6} ${40 + 20}
+                Q ${50 - headWidth - 5} ${40 + 30} ${50 - headWidth - 3} ${40 + 35}
+                L ${50 - headWidth + 1} ${40 + 34}
+                Q ${50 - headWidth + 1} ${40 + 28} ${50 - headWidth + 1} ${40 + 18}
+                Q ${50 - headWidth} ${40 + 5} ${50 - headWidth + 2} ${headTop + 10}
+                Z
+              `}
               fill={hairColor}
             />
-            <ellipse
-              cx={50 + headWidth + 3}
-              cy={40}
-              rx={6}
-              ry={20}
+            <path
+              d={`
+                M ${50 + headWidth + 4} ${headTop + 10}
+                Q ${50 + headWidth + 7} ${40 + 5} ${50 + headWidth + 6} ${40 + 20}
+                Q ${50 + headWidth + 5} ${40 + 30} ${50 + headWidth + 3} ${40 + 35}
+                L ${50 + headWidth - 1} ${40 + 34}
+                Q ${50 + headWidth - 1} ${40 + 28} ${50 + headWidth - 1} ${40 + 18}
+                Q ${50 + headWidth} ${40 + 5} ${50 + headWidth - 2} ${headTop + 10}
+                Z
+              `}
               fill={hairColor}
+            />
+            {/* Hair detail strands - longer */}
+            <path
+              d={`M ${50 - headWidth - 3.5} ${headTop + 14} Q ${50 - headWidth - 5} ${40 + 15} ${50 - headWidth - 4} ${40 + 32}`}
+              stroke={hairColor}
+              strokeWidth="1.5"
+              fill="none"
+              opacity="0.5"
+            />
+            <path
+              d={`M ${50 + headWidth + 3.5} ${headTop + 14} Q ${50 + headWidth + 5} ${40 + 15} ${50 + headWidth + 4} ${40 + 32}`}
+              stroke={hairColor}
+              strokeWidth="1.5"
+              fill="none"
+              opacity="0.5"
             />
           </g>
         );
@@ -747,6 +820,9 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
 
           {/* Eyes */}
           {renderEyes()}
+
+          {/* Nose */}
+          {renderNose()}
 
           {/* Glasses */}
           {renderGlasses()}

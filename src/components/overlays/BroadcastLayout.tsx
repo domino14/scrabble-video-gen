@@ -67,7 +67,7 @@ export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
             style={{
               position: 'absolute',
               bottom: '370px',
-              left: '85px',
+              left: '100px',
               width: '255px',
               height: '255px',
               border: '3px solid rgba(255, 255, 255, 0.3)',
@@ -96,7 +96,7 @@ export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
             style={{
               position: 'absolute',
               bottom: '370px',
-              right: '85px',
+              right: '100px',
               width: '255px',
               height: '255px',
               border: '3px solid rgba(255, 255, 255, 0.3)',
