@@ -109,20 +109,66 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
     }
 
     if (expression === 'angry') {
-      // Strongly angled inward (angry)
+      // Mildly furrowed — slightly angled inward but not aggressive
       const intensity = expressionIntensity;
       return (
         <>
           <path
-            d={`M ${50 - 18} ${baseY + 2 * intensity} L ${50 - 6} ${baseY - 4 * intensity}`}
+            d={`M ${50 - 18} ${baseY + 1 * intensity} L ${50 - 6} ${baseY - 1 * intensity}`}
             stroke="#4A3428"
-            strokeWidth={browWidth * 1.2}
+            strokeWidth={browWidth}
             strokeLinecap="round"
           />
           <path
-            d={`M ${50 + 18} ${baseY + 2 * intensity} L ${50 + 6} ${baseY - 4 * intensity}`}
+            d={`M ${50 + 18} ${baseY + 1 * intensity} L ${50 + 6} ${baseY - 1 * intensity}`}
             stroke="#4A3428"
-            strokeWidth={browWidth * 1.2}
+            strokeWidth={browWidth}
+            strokeLinecap="round"
+          />
+        </>
+      );
+    }
+
+    if (expression === 'eye_roll') {
+      // One brow slightly arched — dismissive look
+      const intensity = expressionIntensity;
+      return (
+        <>
+          <path
+            d={`M ${50 - 18} ${baseY - 1 * intensity} Q ${50 - 12} ${baseY - 3 * intensity} ${50 - 6} ${baseY - 1 * intensity}`}
+            stroke="#4A3428"
+            strokeWidth={browWidth}
+            fill="none"
+            strokeLinecap="round"
+          />
+          <path
+            d={`M ${50 + 6} ${baseY - 1 * intensity} Q ${50 + 12} ${baseY - 3 * intensity} ${50 + 18} ${baseY - 1 * intensity}`}
+            stroke="#4A3428"
+            strokeWidth={browWidth}
+            fill="none"
+            strokeLinecap="round"
+          />
+        </>
+      );
+    }
+
+    if (expression === 'talking') {
+      // Slightly raised, engaged eyebrows
+      const intensity = expressionIntensity;
+      return (
+        <>
+          <path
+            d={`M ${50 - 18} ${baseY - 1 * intensity} Q ${50 - 12} ${baseY - 2 * intensity} ${50 - 6} ${baseY - 1 * intensity}`}
+            stroke="#4A3428"
+            strokeWidth={browWidth}
+            fill="none"
+            strokeLinecap="round"
+          />
+          <path
+            d={`M ${50 + 6} ${baseY - 1 * intensity} Q ${50 + 12} ${baseY - 2 * intensity} ${50 + 18} ${baseY - 1 * intensity}`}
+            stroke="#4A3428"
+            strokeWidth={browWidth}
+            fill="none"
             strokeLinecap="round"
           />
         </>
@@ -230,18 +276,67 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
     }
 
     if (expression === 'angry') {
-      // Wide eyes with smaller pupils (intense glare)
+      // Closed/squinting eyes — slightly drooped upper lid
+      const intensity = expressionIntensity;
+      return (
+        <>
+          {/* Left eye: thin squint */}
+          <path
+            d={`M ${50 - 18} ${baseY} Q ${50 - 12} ${baseY + 3 * intensity} ${50 - 6} ${baseY}`}
+            stroke="#2C1810"
+            strokeWidth="2.5"
+            fill="none"
+            strokeLinecap="round"
+          />
+          {/* Right eye: thin squint */}
+          <path
+            d={`M ${50 + 6} ${baseY} Q ${50 + 12} ${baseY + 3 * intensity} ${50 + 18} ${baseY}`}
+            stroke="#2C1810"
+            strokeWidth="2.5"
+            fill="none"
+            strokeLinecap="round"
+          />
+        </>
+      );
+    }
+
+    if (expression === 'eye_roll') {
+      // Eyes looking up — pupils shifted upward
+      const intensity = expressionIntensity;
+      const pupilShift = -4 * intensity; // pupils move up
+      return (
+        <>
+          {/* Left eye white */}
+          <circle cx={50 - 12} cy={baseY} r={7} fill="white" />
+          {/* Right eye white */}
+          <circle cx={50 + 12} cy={baseY} r={7} fill="white" />
+          {/* Left pupil — shifted up */}
+          <circle cx={50 - 12} cy={baseY + pupilShift} r={4.5} fill="#2C1810" />
+          {/* Right pupil — shifted up */}
+          <circle cx={50 + 12} cy={baseY + pupilShift} r={4.5} fill="#2C1810" />
+          {/* Highlights */}
+          <circle cx={50 - 10} cy={baseY + pupilShift - 1.5} r={1.5} fill="white" />
+          <circle cx={50 + 14} cy={baseY + pupilShift - 1.5} r={1.5} fill="white" />
+        </>
+      );
+    }
+
+    if (expression === 'talking') {
+      // Bright, engaged eyes — slightly squinted happy look
       return (
         <>
           {/* Eye whites */}
-          <circle cx={50 - 12} cy={baseY} r={8} fill="white" />
-          <circle cx={50 + 12} cy={baseY} r={8} fill="white" />
-          {/* Small, intense pupils */}
-          <circle cx={50 - 12} cy={baseY + 1} r={4} fill="#2C1810" />
-          <circle cx={50 + 12} cy={baseY + 1} r={4} fill="#2C1810" />
-          {/* Sharp highlights */}
-          <circle cx={50 - 10} cy={baseY - 1} r={1.5} fill="white" />
-          <circle cx={50 + 14} cy={baseY - 1} r={1.5} fill="white" />
+          <circle cx={50 - 12} cy={baseY} r={7} fill="white" />
+          <circle cx={50 + 12} cy={baseY} r={7} fill="white" />
+          {/* Pupils */}
+          <circle cx={50 - 12} cy={baseY} r={5} fill="#2C1810" />
+          <circle cx={50 + 12} cy={baseY} r={5} fill="#2C1810" />
+          {/* Highlights */}
+          <circle cx={50 - 10} cy={baseY - 2} r={1.5} fill="white" />
+          <circle cx={50 + 14} cy={baseY - 2} r={1.5} fill="white" />
+          {/* Sparkles */}
+          <circle cx={50 - 10} cy={baseY - 3} r={1} fill="#4A90E2" opacity={0.8} />
+          <circle cx={50 + 14} cy={baseY - 3} r={1} fill="#4A90E2" opacity={0.8} />
         </>
       );
     }
@@ -327,23 +422,55 @@ export const PlayerAvatarWidget: React.FC<PlayerAvatarWidgetProps> = ({
     }
 
     if (expression === 'angry') {
-      // Shouting/yelling mouth
+      // Tight-lipped flat line — subtle displeasure
       const intensity = expressionIntensity;
       return (
+        <path
+          d={`M ${50 - 12} ${baseY + 3} Q ${50} ${baseY + 3 + 1 * intensity} ${50 + 12} ${baseY + 3}`}
+          stroke="#2C1810"
+          strokeWidth="2.5"
+          fill="none"
+          strokeLinecap="round"
+        />
+      );
+    }
+
+    if (expression === 'eye_roll') {
+      // Pursed frown — lips pressed together, corners slightly down
+      const intensity = expressionIntensity;
+      return (
+        <path
+          d={`M ${50 - 10} ${baseY + 2} Q ${50} ${baseY + 2 - 3 * intensity} ${50 + 10} ${baseY + 2}`}
+          stroke="#2C1810"
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+        />
+      );
+    }
+
+    if (expression === 'talking') {
+      // Animated talking mouth: sine-wave driven open/close
+      // ~6 frames per syllable ≈ natural speech cadence at 30fps
+      const openAmount = Math.abs(Math.sin(currentFrame * Math.PI / 6)) * expressionIntensity;
+      const mouthOpenY = openAmount * 5; // max 5px opening
+      return (
         <g>
-          <ellipse
-            cx={50}
-            cy={baseY + 8}
-            rx={10 * intensity}
-            ry={12 * intensity}
-            fill="#8B0000"
+          {/* Upper lip */}
+          <path
+            d={`M ${50 - 10} ${baseY + 2} Q ${50} ${baseY} ${50 + 10} ${baseY + 2}`}
+            stroke="#2C1810"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
           />
-          <ellipse
-            cx={50}
-            cy={baseY + 8}
-            rx={8 * intensity}
-            ry={10 * intensity}
-            fill="#2C1810"
+          {/* Lower lip / jaw drop */}
+          <path
+            d={`M ${50 - 10} ${baseY + 2} Q ${50} ${baseY + 2 + mouthOpenY * 2} ${50 + 10} ${baseY + 2}`}
+            stroke="#2C1810"
+            strokeWidth="2"
+            fill={mouthOpenY > 1 ? '#8B4560' : 'none'}
+            strokeLinecap="round"
           />
         </g>
       );

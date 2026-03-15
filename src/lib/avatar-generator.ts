@@ -43,7 +43,7 @@ export const FACE_DIMENSIONS: Record<AvatarTraits['faceShape'], { width: number;
 };
 
 // Simple hash function for deterministic trait generation
-function hashString(str: string): number {
+export function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);

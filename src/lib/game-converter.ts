@@ -139,8 +139,11 @@ export function convertGameHistoryToStates(gameHistory: GameHistory): Board3DDat
     // Update player score
     players[playerIndex].score = event.cumulative;
 
-    // Update player rack
-    players[playerIndex].rack = rackStringToArray(event.rack);
+    // Update player rack — skip for END_RACK_PTS: event.rack is the OTHER player's remaining tiles,
+    // not this player's rack (they went out and have no tiles)
+    if (event.type !== GameEvent_Type.END_RACK_PTS) {
+      players[playerIndex].rack = rackStringToArray(event.rack);
+    }
 
     // Handle tile placement moves
     if (isTilePlacementMove(event)) {
@@ -194,8 +197,9 @@ export function convertGameHistoryToStates(gameHistory: GameHistory): Board3DDat
     }
     // Handle end-game rack points adjustment
     else if (event.type === GameEvent_Type.END_RACK_PTS) {
-      // playerIndex is who GETS the points
+      // playerIndex is who GETS the points (the player who went out — empty rack)
       // event.rack contains the tiles from the OTHER player (who has remaining tiles)
+      players[playerIndex].rack = []; // went out, no tiles remaining
       const otherPlayerIndex = (playerIndex + 1) % players.length;
 
       // Update the other player's rack to show their remaining tiles

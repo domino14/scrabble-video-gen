@@ -8,12 +8,15 @@ import * as THREE from "three";
 import { Board3DData } from "../types/board-3d-data";
 import { TimingScript } from "../schemas/timing-script.schema";
 import { BroadcastBoardView } from "../components/three/BroadcastBoardView";
+import { CameraController, CameraKeyframe } from "../components/three/CameraController";
+import { TileToScorecardAnimated } from "../components/three/TileToScorecardAnimated";
 import { BroadcastLayout } from "../components/overlays/BroadcastLayout";
 import { Rack } from "../components/three/Rack";
 import { AnimatedRackTile } from "../components/three/AnimatedRackTile";
-import { getRackPosition, getRackTileRotation } from "../lib/board-coordinates";
+import { getBoardPosition, getRackPosition, getRackTileRotation } from "../lib/board-coordinates";
 import { secondsToFrames } from "../lib/audio-utils";
 import { ExpressionType } from "../types/avatar";
+import { hashString } from "../lib/avatar-generator";
 
 interface BroadcastSceneProps {
   boardStates: Board3DData[];
@@ -95,6 +98,43 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
       let p1Expression: ExpressionType = 'idle';
       let p1Intensity = 0;
 
+      // Post-game talking: after the last play/end_rack cue + 1s cooldown, players chat
+      const lastGameCue = timingScript.cues
+        .filter(c => c.action === 'play_tiles' || c.action === 'play_tiles_with_zoom' || c.action === 'end_rack')
+        .at(-1);
+      const talkingStartTime = lastGameCue ? lastGameCue.time + 1 : Infinity;
+      if (currentTimeSeconds >= talkingStartTime) {
+        const talkInterval = 2.5; // seconds each player talks
+        const elapsed = currentTimeSeconds - talkingStartTime;
+        const speakerIndex = Math.floor(elapsed / talkInterval) % 2;
+        const phaseProgress = (elapsed % talkInterval) / talkInterval;
+        // Fade in/out within each turn
+        const talkIntensity = phaseProgress < 0.1
+          ? phaseProgress / 0.1
+          : phaseProgress > 0.9
+            ? (1 - phaseProgress) / 0.1
+            : 1;
+
+        if (speakerIndex === 0) {
+          p0Expression = 'talking';
+          p0Intensity = talkIntensity;
+          p1Expression = 'happy';
+          p1Intensity = talkIntensity * 0.4;
+        } else {
+          p1Expression = 'talking';
+          p1Intensity = talkIntensity;
+          p0Expression = 'happy';
+          p0Intensity = talkIntensity * 0.4;
+        }
+
+        return {
+          player0Expression: p0Expression,
+          player0Intensity: p0Intensity,
+          player1Expression: p1Expression,
+          player1Intensity: p1Intensity,
+        };
+      }
+
       // Check most recent play for expression triggers
       const mostRecentPlay = recentPlays.at(-1);
       if (mostRecentPlay && mostRecentPlay.turnIndex !== undefined) {
@@ -137,13 +177,19 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
               p1Intensity = intensity;
             }
 
-            // Opponent gets angry if score >= 60, otherwise sad
+            // Opponent gets angry/eye_roll (deterministic per opponent+turn) if score >= 60, otherwise sad
             if (event.score >= 60) {
+              const opponentIndex = playerIndex === 0 ? 1 : 0;
+              const opponentNickname = state.players[opponentIndex]?.nickname ?? '';
+              const angryVariant: ExpressionType =
+                hashString(opponentNickname + mostRecentPlay.turnIndex) % 2 === 0
+                  ? 'angry'
+                  : 'eye_roll';
               if (playerIndex === 0) {
-                p1Expression = 'angry';
+                p1Expression = angryVariant;
                 p1Intensity = intensity * 0.8;
               } else {
-                p0Expression = 'angry';
+                p0Expression = angryVariant;
                 p0Intensity = intensity * 0.8;
               }
             } else {
@@ -268,8 +314,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     const state = boardStates[stateIndex];
     const numTiles = state?.tiles.filter(t => t.isNew).length || 0;
 
-    // Use correct speed: 0.3 for play_tiles_with_zoom, timing script speed for regular play_tiles
-    const actualSpeed = playTilesCue.action === 'play_tiles_with_zoom' ? 0.3 : (playTilesCue.speed || 1.0);
+    const actualSpeed = playTilesCue.speed || 1.0;
     const adjustedStagger = 8 / actualSpeed;
     const springDuration = 30 / actualSpeed; // Approximate spring settle time
     const animationDurationFrames = (numTiles - 1) * adjustedStagger + springDuration + 10; // +10 frames buffer
@@ -279,6 +324,8 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
       frame >= animStartFrame && frame < animStartFrame + animationDurationFrames
     );
   }, [playTilesCue, frame, fps, currentStateIndex, boardStates]);
+
+  const showEndRackAnimation = activeCue?.action === 'end_rack' && !!currentBoardState.currentEvent;
 
   // Prepare board data with animations
   const boardDataWithAnimations = useMemo(
@@ -339,10 +386,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
                 rackIndex,
                 animationStartFrame: secondsToFrames(playTilesCue.time, fps),
                 playIndex,
-                speed:
-                  playTilesCue.action === "play_tiles_with_zoom"
-                    ? 0.3
-                    : playTilesCue.speed || 1.0,
+                speed: playTilesCue.speed || 1.0,
               },
             };
           })
@@ -371,6 +415,43 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
       ? playTilesCue.playerIndex
       : playTilesCue.turnIndex % 2;
   }, [showTileAnimation, playTilesCue]);
+
+  // Who just played (regardless of whether animation is still running)
+  const lastPlayedPlayerIndex = useMemo(() => {
+    if (!playTilesCue || playTilesCue.turnIndex === undefined) return -1;
+    return playTilesCue.playerIndex !== undefined
+      ? playTilesCue.playerIndex
+      : playTilesCue.turnIndex % 2;
+  }, [playTilesCue]);
+
+  // Onturn indicator: during animation show the playing player; outside animation
+  // show whoever is next to play (by scanning upcoming cues), so consecutive same-player
+  // turns don't bounce. During end_rack show the giving player; after end_rack nobody.
+  const onturnPlayerIndex = useMemo(() => {
+    const endRackCue = timingScript.cues.find(c => c.action === 'end_rack');
+
+    // During end_rack: show the giving player (opponent of who went out)
+    if (activeCue?.action === 'end_rack') {
+      return lastPlayedPlayerIndex >= 0 ? 1 - lastPlayedPlayerIndex : -1;
+    }
+    // After end_rack animation ends: game over
+    if (endRackCue && currentTimeSeconds >= endRackCue.time) return -1;
+
+    // During tile animation: the placing player is on turn
+    if (showTileAnimation && lastPlayedPlayerIndex >= 0) return lastPlayedPlayerIndex;
+
+    // Outside animation: find the next upcoming cue that carries a playerIndex
+    const nextCue = timingScript.cues.find(c =>
+      c.time > currentTimeSeconds &&
+      c.playerIndex !== undefined &&
+      (c.action === 'show_turn' || c.action === 'play_tiles' || c.action === 'play_tiles_with_zoom')
+    );
+    if (nextCue?.playerIndex !== undefined) return nextCue.playerIndex;
+
+    // No more plays coming — game is ending; show opponent of last player
+    if (lastPlayedPlayerIndex >= 0) return 1 - lastPlayedPlayerIndex;
+    return currentBoardState.players.findIndex(p => p.onturn);
+  }, [showTileAnimation, lastPlayedPlayerIndex, currentBoardState, timingScript.cues, currentTimeSeconds, activeCue]);
 
   // ALWAYS use per-player lookup for rack display
   // This ensures each player's rack is shown from their correct state
@@ -470,9 +551,13 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     const p1 = getPlayerRackState(0);
     const p2 = getPlayerRackState(1);
 
+    // After end_rack animation completes, both racks should be empty (game over)
+    const endRackCue = timingScript.cues.find(c => c.action === 'end_rack');
+    const postGame = !showEndRackAnimation && endRackCue !== undefined && currentTimeSeconds >= endRackCue.time;
+
     return {
-      player0Rack: p1?.rack || [],
-      player1Rack: p2?.rack || [],
+      player0Rack: postGame ? [] : (p1?.rack || []),
+      player1Rack: postGame ? [] : (p2?.rack || []),
       player1: p1 || currentBoardState.players[0],
       player2: p2 || currentBoardState.players[1],
     };
@@ -483,11 +568,40 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     timingScript.cues,
     currentTimeSeconds,
     currentBoardState,
+    showEndRackAnimation,
   ]);
 
   // Helper to calculate animated rack indices with their play order
   // Returns a Map of rackIndex → playIndex for correct animation timing
   const getAnimatedRackMap = (playerIndex: number): Map<number, number> => {
+    // Handle end_rack: hide tiles from the giving player's rack as they animate away
+    if (showEndRackAnimation && activeCue?.turnIndex !== undefined) {
+      const endRackState = boardStates[activeCue.turnIndex];
+      const receivingPlayerIndex = endRackState?.players.findIndex(p => p.onturn) ?? -1;
+      const givingPlayerIndex = (receivingPlayerIndex + 1) % 2;
+      if (playerIndex !== givingPlayerIndex || !currentBoardState.currentEvent) return new Map();
+
+      const rackLetters = currentBoardState.currentEvent.playedTiles.split('');
+      const givingRack = endRackState?.players[givingPlayerIndex]?.rack || [];
+      const speed = activeCue.speed || 1.0;
+      const adjustedStagger = 8 / speed;
+      const startFrame = secondsToFrames(activeCue.time, fps);
+      const currentAnimFrame = frame - startFrame;
+      const map = new Map<number, number>();
+      const usedIndices = new Set<number>();
+
+      rackLetters.forEach((letter, tileIndex) => {
+        if (currentAnimFrame >= tileIndex * adjustedStagger) {
+          const rackIndex = givingRack.findIndex((l, idx) => !usedIndices.has(idx) && l === letter);
+          if (rackIndex !== -1) {
+            map.set(rackIndex, tileIndex);
+            usedIndices.add(rackIndex);
+          }
+        }
+      });
+      return map;
+    }
+
     if (!showTileAnimation || playingPlayerIndex !== playerIndex || !playTilesCue) {
       return new Map();
     }
@@ -499,10 +613,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     const rackIndexToPlayIndex = new Map<number, number>();
     const playedTiles = currentBoardState.tiles.filter((t) => t.isNew);
     const TILE_STAGGER = 8;
-    const speed =
-      playTilesCue.action === "play_tiles_with_zoom"
-        ? 0.3
-        : playTilesCue.speed || 1.0;
+    const speed = playTilesCue.speed || 1.0;
     const adjustedStagger = TILE_STAGGER / speed;
     const startFrame = secondsToFrames(playTilesCue.time, fps);
     const currentAnimFrame = frame - startFrame;
@@ -530,6 +641,9 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     return rackIndexToPlayIndex;
   };
 
+  // Derive animation cue and timing for rack tiles (handles both play_tiles and end_rack)
+  const rackAnimCue = showEndRackAnimation ? activeCue : (showTileAnimation ? playTilesCue : null);
+
   // Convert racks to tile data with animation state
   const player1RackTiles = useMemo(() => {
     const animatedRackMap = getAnimatedRackMap(0);
@@ -548,19 +662,16 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
         value,
         rackIndex: i,
         animationState:
-          isAnimated && playTilesCue
+          isAnimated && rackAnimCue
             ? {
-                startFrame: secondsToFrames(playTilesCue.time, fps),
+                startFrame: secondsToFrames(rackAnimCue.time, fps),
                 playIndex,
-                speed:
-                  playTilesCue.action === "play_tiles_with_zoom"
-                    ? 0.3
-                    : playTilesCue.speed || 1.0,
+                speed: rackAnimCue.speed || 1.0,
               }
             : undefined,
       };
     });
-  }, [player0Rack, playingPlayerIndex, showTileAnimation, playTilesCue, boardStates, currentBoardState.tiles, frame, fps]);
+  }, [player0Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps]);
 
   const player2RackTiles = useMemo(() => {
     const animatedRackMap = getAnimatedRackMap(1);
@@ -579,19 +690,16 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
         value,
         rackIndex: i,
         animationState:
-          isAnimated && playTilesCue
+          isAnimated && rackAnimCue
             ? {
-                startFrame: secondsToFrames(playTilesCue.time, fps),
+                startFrame: secondsToFrames(rackAnimCue.time, fps),
                 playIndex,
-                speed:
-                  playTilesCue.action === "play_tiles_with_zoom"
-                    ? 0.3
-                    : playTilesCue.speed || 1.0,
+                speed: rackAnimCue.speed || 1.0,
               }
             : undefined,
       };
     });
-  }, [player1Rack, playingPlayerIndex, showTileAnimation, playTilesCue, boardStates, currentBoardState.tiles, frame, fps]);
+  }, [player1Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps]);
 
   // Debug: comprehensive logging with duplicate letter tracking
   if (frame % 5 === 0 && showTileAnimation && playTilesCue?.turnIndex === 3) {
@@ -615,42 +723,84 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     console.log('Animating indices:', animating.map(t => `${t.idx}:${t.letter}`).join(', '));
   }
 
-  // Track the on-turn player and find the play_tiles cue for their current turn
-  // Tile pool should stay constant for the entire turn
+  // Tile pool board state: during animation, use the board BEFORE the animating player's
+  // play so their tiles don't count as both "on rack" and "on board". Outside of animation,
+  // use currentBoardState directly so the bag+unseen updates as soon as the turn switches.
   const tilePoolBoardState = useMemo(() => {
-    const onTurnPlayer = currentBoardState.players.findIndex(p => p.onturn);
-
-    // Find the most recent play_tiles cue for the current on-turn player
-    const relevantPlayCue = timingScript.cues
-      .filter(cue =>
-        (cue.action === "play_tiles" || cue.action === "play_tiles_with_zoom") &&
-        cue.time <= currentTimeSeconds &&
-        cue.turnIndex !== undefined
-      )
-      .reverse()
-      .find(cue => {
-        // Check if this cue's turn matches the current on-turn player
-        const cueState = boardStates[cue.turnIndex + 1];
-        if (!cueState) return false;
-        return cueState.players.findIndex(p => p.onturn) === onTurnPlayer;
-      });
-
-    if (relevantPlayCue && relevantPlayCue.turnIndex !== undefined) {
-      // Use state at turnIndex to get board before this play
-      const boardStateBeforePlay = boardStates[relevantPlayCue.turnIndex] || boardStates[0];
-      const rackState = boardStates[relevantPlayCue.turnIndex + 1] || currentBoardState;
-
-      // Create a combined state: board from before play, racks from the play's state
-      const state: Board3DData = {
-        ...boardStateBeforePlay,
-        players: rackState.players.map(p => ({ ...p })),
-      };
-
-      return state;
+    if (!showTileAnimation || !playTilesCue || playTilesCue.turnIndex === undefined) {
+      return currentBoardState;
     }
 
-    return currentBoardState;
-  }, [currentBoardState, timingScript.cues, currentTimeSeconds, boardStates]);
+    // During animation: board from before this play, racks from after
+    const boardStateBeforePlay = boardStates[playTilesCue.turnIndex] || boardStates[0];
+    const rackState = boardStates[playTilesCue.turnIndex + 1] || currentBoardState;
+
+    return {
+      ...boardStateBeforePlay,
+      players: rackState.players.map(p => ({ ...p })),
+    };
+  }, [showTileAnimation, playTilesCue, currentBoardState, boardStates]);
+
+  // Generate camera keyframes for the broadcast board view
+  const broadcastCameraKeyframes = useMemo((): CameraKeyframe[] => {
+    const keyframes: CameraKeyframe[] = [
+      { frame: 0, position: [0, 0, 100], lookAt: [0, 0, 0] },
+    ];
+    let activeZoomEndFrame = -1;
+
+    timingScript.cues.forEach((cue) => {
+      const cueFrame = secondsToFrames(cue.time, fps);
+
+      if (cue.action === 'overview') {
+        keyframes.push({ frame: Math.max(cueFrame, activeZoomEndFrame + 1), position: [0, 0, 100], lookAt: [0, 0, 0] });
+      } else if (cue.action === 'play_tiles_with_zoom' && cue.turnIndex !== undefined) {
+        const stateIndex = cue.turnIndex + 1;
+        const state = boardStates[stateIndex];
+        if (!state) return;
+
+        let newTiles = state.tiles.filter(t => t.isNew);
+        if (newTiles.length === 0) return;
+
+        const isVertical = newTiles.every(t => t.col === newTiles[0].col);
+        if (isVertical) {
+          newTiles = [...newTiles].sort((a, b) => a.row - b.row);
+        } else {
+          newTiles = [...newTiles].sort((a, b) => a.col - b.col);
+        }
+
+        const animSpeed = cue.speed || 1.0;
+        const staggerFrames = 8 / animSpeed;
+        const tileFallTime = 30 / animSpeed;
+
+        const firstTilePos = getBoardPosition(newTiles[0].row, newTiles[0].col);
+        const lastTilePos = getBoardPosition(newTiles[newTiles.length - 1].row, newTiles[newTiles.length - 1].col);
+        const zoomHeight = cue.zoomHeight || 40;
+        const panEndFrame = cueFrame + (newTiles.length - 1) * staggerFrames + tileFallTime;
+
+        keyframes.push({
+          frame: cueFrame,
+          position: [firstTilePos.x, firstTilePos.y, zoomHeight],
+          lookAt: [firstTilePos.x, firstTilePos.y, 0],
+          linear: true,
+        });
+        keyframes.push({
+          frame: panEndFrame,
+          position: [lastTilePos.x, lastTilePos.y, zoomHeight],
+          lookAt: [lastTilePos.x, lastTilePos.y, 0],
+          linear: true,
+        });
+        keyframes.push({
+          frame: panEndFrame + 30,
+          position: [lastTilePos.x, lastTilePos.y, zoomHeight],
+          lookAt: [lastTilePos.x, lastTilePos.y, 0],
+        });
+
+        activeZoomEndFrame = panEndFrame + 30;
+      }
+    });
+
+    return keyframes.sort((a, b) => a.frame - b.frame);
+  }, [timingScript.cues, fps, boardStates]);
 
   return (
     <>
@@ -673,13 +823,6 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
           <ThreeCanvas
             width={1030}
             height={900}
-            camera={{
-              fov: 50,
-              position: [0, 0, 100],
-              up: [0, 1, 0],
-              near: 0.1,
-              far: 1000,
-            }}
             style={{ backgroundColor: "#1a1a1a" }}
             onCreated={({ gl }) => {
               try {
@@ -690,11 +833,52 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
               }
             }}
           >
+            <CameraController keyframes={broadcastCameraKeyframes} />
             <BroadcastBoardView
               data={boardDataWithAnimations}
               tileColor={tileColor}
               boardColor={boardColor}
             />
+            {showEndRackAnimation && activeCue?.turnIndex !== undefined && (() => {
+              const endRackState = boardStates[activeCue.turnIndex];
+              if (!endRackState || !currentBoardState.currentEvent) return null;
+
+              const receivingPlayerIndex = endRackState.players.findIndex(p => p.onturn);
+              const givingPlayerIndex = (receivingPlayerIndex + 1) % 2;
+              const givingPlayer = endRackState.players[givingPlayerIndex];
+              const rackLetters = currentBoardState.currentEvent.playedTiles.split('');
+              const animStartFrame = secondsToFrames(activeCue.time, fps);
+              const speed = activeCue.speed || 1.0;
+
+              return rackLetters.map((letter, tileIndex) => {
+                const usedIndices = new Set<number>();
+                for (let i = 0; i < tileIndex; i++) {
+                  const idx = givingPlayer?.rack.findIndex((l, j) => !usedIndices.has(j) && l === rackLetters[i]) ?? -1;
+                  if (idx !== -1) usedIndices.add(idx);
+                }
+                let rackIndex = givingPlayer?.rack.findIndex((l, idx) => !usedIndices.has(idx) && l === letter) ?? -1;
+                if (rackIndex === -1) rackIndex = tileIndex;
+
+                const startPos = getRackPosition(rackIndex);
+                const isBlank = letter === letter.toLowerCase() && letter !== letter.toUpperCase();
+                const value = isBlank ? 0 : getLetterValue(letter);
+
+                return (
+                  <TileToScorecardAnimated
+                    key={`end-rack-${tileIndex}`}
+                    letter={letter}
+                    value={value}
+                    startPosition={[startPos.x, startPos.y, startPos.z]}
+                    targetPlayerIndex={receivingPlayerIndex}
+                    color={tileColor}
+                    blank={isBlank}
+                    startFrame={animStartFrame}
+                    index={tileIndex}
+                    speed={speed}
+                  />
+                );
+              });
+            })()}
           </ThreeCanvas>
         </div>
 
@@ -893,7 +1077,10 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
       <BroadcastLayout
         boardState={currentBoardState}
         tilePoolBoardState={tilePoolBoardState}
+        player0Rack={player0Rack}
+        player1Rack={player1Rack}
         tileColor={tileColor}
+        onturnPlayerIndex={onturnPlayerIndex}
         showMoveNotation={
           currentBoardState.currentEvent &&
           (activeCue?.action === "play_tiles" ||

@@ -168,6 +168,48 @@ npm start
 
 Then navigate to `http://localhost:3000` to see the Remotion Studio.
 
+## Rendering
+
+### macOS
+
+```bash
+npx remotion render GameAnalysis --gl=angle
+```
+
+### Linux (Mesa/Intel GPU — recommended)
+
+This machine has dual GPU (Intel UHD 770 + NVIDIA RTX 3070 Ti). The NVIDIA card
+does not work with Chrome headless due to a `BindToCurrentSequence` bug in Chromium's
+PRIME Optimus mode. Use the Intel GPU via Mesa instead — same quality, ~8.5 min render.
+
+**Prerequisites:**
+1. Install system Chromium: `sudo pacman -S chromium`
+2. Patch `node_modules/@remotion/renderer/dist/open-browser.js` — in `getOpenGlRenderer()`,
+   add before the final `return` line:
+   ```js
+   if (renderer === 'angle') {
+       return ['--use-gl=angle', '--use-angle=gl'];
+   }
+   ```
+   This forces ANGLE to use native OpenGL instead of Vulkan (NVIDIA driver lacks
+   `VK_EXT_headless_surface`).
+
+**Render command:**
+```bash
+DISPLAY=:1 XAUTHORITY=/run/user/1000/xauth_Jkzsei XDG_RUNTIME_DIR=/run/user/1000 \
+  __GLX_VENDOR_LIBRARY_NAME=mesa DRI_PRIME=0 \
+  npx remotion render GameAnalysis --gl=angle --browser-executable=$(which chromium) --concurrency=1
+```
+
+> Note: `XAUTHORITY` path may change between sessions — if it fails, check
+> `ls /run/user/1000/xauth_*` for the current cookie file.
+
+### Linux fallback (software rendering — may have artifacts)
+
+```bash
+npx remotion render GameAnalysis --gl=swangle
+```
+
 ### Key Concepts
 
 **1. Everything is a pure function of `currentFrame`**

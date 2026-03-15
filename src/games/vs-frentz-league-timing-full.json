@@ -1,58 +1,321 @@
 {
-  "cues": [
-    { "time": 0, "action": "overview" },
-    { "time": 2, "action": "show_turn", "turnIndex": 0 },
-    { "time": 3, "action": "play_tiles", "turnIndex": 0 },
-    { "time": 5, "action": "show_turn", "turnIndex": 1 },
-    { "time": 6, "action": "play_tiles", "turnIndex": 1 },
-    { "time": 8, "action": "show_turn", "turnIndex": 2 },
-    { "time": 9, "action": "play_tiles", "turnIndex": 2 },
-    { "time": 11, "action": "overview" },
-    { "time": 12, "action": "show_turn", "turnIndex": 3 },
-    { "time": 13, "action": "play_tiles_with_zoom", "turnIndex": 3, "speed": 0.157 },
-    { "time": 24, "action": "highlight", "turnIndex": 3 },
-    { "time": 26, "action": "overview" },
-    { "time": 28, "action": "show_turn", "turnIndex": 4 },
-    { "time": 30, "action": "play_tiles", "turnIndex": 4 },
-    { "time": 32, "action": "show_turn", "turnIndex": 5 },
-    { "time": 33, "action": "play_tiles", "turnIndex": 5 },
-    { "time": 35, "action": "show_turn", "turnIndex": 6 },
-    { "time": 36, "action": "play_tiles", "turnIndex": 6 },
-    { "time": 38, "action": "show_turn", "turnIndex": 7 },
-    { "time": 39, "action": "play_tiles", "turnIndex": 7 },
-    { "time": 41, "action": "show_turn", "turnIndex": 8 },
-    { "time": 42, "action": "play_tiles", "turnIndex": 8 },
-    { "time": 44, "action": "show_turn", "turnIndex": 9 },
-    { "time": 45, "action": "play_tiles", "turnIndex": 9 },
-    { "time": 47, "action": "show_turn", "turnIndex": 10 },
-    { "time": 48, "action": "play_tiles", "turnIndex": 10 },
-    { "time": 52, "action": "show_turn", "turnIndex": 11 },
-    { "time": 53, "action": "play_tiles", "turnIndex": 11 },
-    { "time": 55, "action": "show_turn", "turnIndex": 12 },
-    { "time": 56, "action": "play_tiles", "turnIndex": 12 },
-    { "time": 58, "action": "show_turn", "turnIndex": 13 },
-    { "time": 59, "action": "play_tiles", "turnIndex": 13 },
-    { "time": 61, "action": "show_turn", "turnIndex": 14 },
-    { "time": 62, "action": "play_tiles", "turnIndex": 14 },
-    { "time": 64, "action": "show_turn", "turnIndex": 15 },
-    { "time": 65, "action": "play_tiles", "turnIndex": 15 },
-    { "time": 67, "action": "show_turn", "turnIndex": 16 },
-    { "time": 68, "action": "play_tiles", "turnIndex": 16 },
-    { "time": 70, "action": "show_turn", "turnIndex": 17 },
-    { "time": 71, "action": "play_tiles", "turnIndex": 17 },
-    { "time": 73, "action": "show_turn", "turnIndex": 18 },
-    { "time": 75, "action": "play_tiles", "turnIndex": 18, "speed": 0.1 },
-    { "time": 95, "action": "show_turn", "turnIndex": 19 },
-    { "time": 96, "action": "play_tiles", "turnIndex": 19 },
-    { "time": 98, "action": "show_turn", "turnIndex": 20 },
-    { "time": 99, "action": "play_tiles", "turnIndex": 20 },
-    { "time": 101, "action": "show_turn", "turnIndex": 21 },
-    { "time": 102, "action": "play_tiles", "turnIndex": 21 },
-    { "time": 104, "action": "show_turn", "turnIndex": 22 },
-    { "time": 105, "action": "play_tiles", "turnIndex": 22 },
-    { "time": 107, "action": "show_turn", "turnIndex": 23 },
-    { "time": 108, "action": "play_tiles", "turnIndex": 23 },
-    { "time": 110, "action": "end_rack", "turnIndex": 24, "speed": 0.5 },
-    { "time": 113, "action": "overview" }
-  ]
+    "cues": [
+        {
+            "time": 0,
+            "action": "overview"
+        },
+        {
+            "time": 2,
+            "action": "show_turn",
+            "turnIndex": 0,
+            "playerIndex": 0
+        },
+        {
+            "time": 3,
+            "action": "play_tiles",
+            "turnIndex": 0,
+            "playerIndex": 0
+        },
+        {
+            "time": 5,
+            "action": "show_turn",
+            "turnIndex": 1,
+            "playerIndex": 1
+        },
+        {
+            "time": 6,
+            "action": "play_tiles",
+            "turnIndex": 1,
+            "playerIndex": 1
+        },
+        {
+            "time": 8,
+            "action": "show_turn",
+            "turnIndex": 2,
+            "playerIndex": 0
+        },
+        {
+            "time": 9,
+            "action": "play_tiles",
+            "turnIndex": 2,
+            "playerIndex": 0
+        },
+        {
+            "time": 11,
+            "action": "overview"
+        },
+        {
+            "time": 12,
+            "action": "show_turn",
+            "turnIndex": 3,
+            "playerIndex": 1
+        },
+        {
+            "time": 13,
+            "action": "play_tiles_with_zoom",
+            "turnIndex": 3,
+            "playerIndex": 1,
+            "speed": 0.314
+        },
+        {
+            "time": 23,
+            "action": "highlight",
+            "turnIndex": 3
+        },
+        {
+            "time": 24,
+            "action": "overview"
+        },
+        {
+            "time": 25,
+            "action": "show_turn",
+            "turnIndex": 4,
+            "playerIndex": 0
+        },
+        {
+            "time": 26,
+            "action": "play_tiles",
+            "turnIndex": 4,
+            "playerIndex": 0
+        },
+        {
+            "time": 28,
+            "action": "show_turn",
+            "turnIndex": 5,
+            "playerIndex": 1
+        },
+        {
+            "time": 29,
+            "action": "play_tiles",
+            "turnIndex": 5,
+            "playerIndex": 1
+        },
+        {
+            "time": 31,
+            "action": "show_turn",
+            "turnIndex": 6,
+            "playerIndex": 0
+        },
+        {
+            "time": 32,
+            "action": "play_tiles",
+            "turnIndex": 6,
+            "playerIndex": 0
+        },
+        {
+            "time": 34,
+            "action": "show_turn",
+            "turnIndex": 7,
+            "playerIndex": 1
+        },
+        {
+            "time": 35,
+            "action": "play_tiles",
+            "turnIndex": 7,
+            "playerIndex": 1
+        },
+        {
+            "time": 37,
+            "action": "show_turn",
+            "turnIndex": 8,
+            "playerIndex": 0
+        },
+        {
+            "time": 38,
+            "action": "play_tiles",
+            "turnIndex": 8,
+            "playerIndex": 0
+        },
+        {
+            "time": 40,
+            "action": "show_turn",
+            "turnIndex": 9,
+            "playerIndex": 1
+        },
+        {
+            "time": 41,
+            "action": "play_tiles",
+            "turnIndex": 9,
+            "playerIndex": 1
+        },
+        {
+            "time": 43,
+            "action": "show_turn",
+            "turnIndex": 10,
+            "playerIndex": 0
+        },
+        {
+            "time": 44,
+            "action": "play_tiles",
+            "turnIndex": 10,
+            "playerIndex": 0
+        },
+        {
+            "time": 48,
+            "action": "show_turn",
+            "turnIndex": 11,
+            "playerIndex": 1
+        },
+        {
+            "time": 49,
+            "action": "play_tiles",
+            "turnIndex": 11,
+            "playerIndex": 1
+        },
+        {
+            "time": 51,
+            "action": "show_turn",
+            "turnIndex": 12,
+            "playerIndex": 0
+        },
+        {
+            "time": 52,
+            "action": "play_tiles",
+            "turnIndex": 12,
+            "playerIndex": 0
+        },
+        {
+            "time": 54,
+            "action": "show_turn",
+            "turnIndex": 13,
+            "playerIndex": 1
+        },
+        {
+            "time": 55,
+            "action": "play_tiles",
+            "turnIndex": 13,
+            "playerIndex": 1
+        },
+        {
+            "time": 57,
+            "action": "show_turn",
+            "turnIndex": 14,
+            "playerIndex": 0
+        },
+        {
+            "time": 58,
+            "action": "play_tiles",
+            "turnIndex": 14,
+            "playerIndex": 0
+        },
+        {
+            "time": 60,
+            "action": "show_turn",
+            "turnIndex": 15,
+            "playerIndex": 1
+        },
+        {
+            "time": 61,
+            "action": "play_tiles",
+            "turnIndex": 15,
+            "playerIndex": 1
+        },
+        {
+            "time": 63,
+            "action": "show_turn",
+            "turnIndex": 16,
+            "playerIndex": 0
+        },
+        {
+            "time": 64,
+            "action": "play_tiles",
+            "turnIndex": 16,
+            "playerIndex": 0
+        },
+        {
+            "time": 66,
+            "action": "show_turn",
+            "turnIndex": 17,
+            "playerIndex": 1
+        },
+        {
+            "time": 67,
+            "action": "play_tiles",
+            "turnIndex": 17,
+            "playerIndex": 1
+        },
+        {
+            "time": 69,
+            "action": "show_turn",
+            "turnIndex": 18,
+            "playerIndex": 0
+        },
+        {
+            "time": 71,
+            "action": "play_tiles",
+            "turnIndex": 18,
+            "playerIndex": 0,
+            "speed": 0.3
+        },
+        {
+            "time": 80,
+            "action": "show_turn",
+            "turnIndex": 19,
+            "playerIndex": 1
+        },
+        {
+            "time": 82,
+            "action": "play_tiles",
+            "turnIndex": 19,
+            "playerIndex": 1
+        },
+        {
+            "time": 84,
+            "action": "show_turn",
+            "turnIndex": 20,
+            "playerIndex": 0
+        },
+        {
+            "time": 85,
+            "action": "play_tiles",
+            "turnIndex": 20,
+            "playerIndex": 0
+        },
+        {
+            "time": 87,
+            "action": "show_turn",
+            "turnIndex": 21,
+            "playerIndex": 1
+        },
+        {
+            "time": 88,
+            "action": "play_tiles",
+            "turnIndex": 21,
+            "playerIndex": 1
+        },
+        {
+            "time": 90,
+            "action": "show_turn",
+            "turnIndex": 22,
+            "playerIndex": 0
+        },
+        {
+            "time": 91,
+            "action": "play_tiles",
+            "turnIndex": 22,
+            "playerIndex": 0
+        },
+        {
+            "time": 93,
+            "action": "show_turn",
+            "turnIndex": 23,
+            "playerIndex": 0
+        },
+        {
+            "time": 94,
+            "action": "play_tiles",
+            "turnIndex": 23,
+            "playerIndex": 0
+        },
+        {
+            "time": 96,
+            "action": "end_rack",
+            "turnIndex": 24,
+            "speed": 0.5
+        },
+        {
+            "time": 99,
+            "action": "overview"
+        }
+    ]
 }

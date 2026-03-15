@@ -14,7 +14,10 @@ import { ExpressionType } from '../../types/avatar';
 interface BroadcastLayoutProps {
   boardState: Board3DData;
   tilePoolBoardState: Board3DData; // Board state for tile pool calculation
+  player0Rack?: string[]; // Pre-computed correct rack for player 0 (overrides tilePoolBoardState racks)
+  player1Rack?: string[]; // Pre-computed correct rack for player 1
   tileColor?: string;
+  onturnPlayerIndex?: number; // Explicit onturn override (0 or 1); falls back to boardState if -1
   showMoveNotation?: boolean;
   moveNotationStartFrame?: number;
   player0Expression?: ExpressionType;
@@ -27,7 +30,10 @@ interface BroadcastLayoutProps {
 export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
   boardState,
   tilePoolBoardState,
+  player0Rack,
+  player1Rack,
   tileColor = 'orange',
+  onturnPlayerIndex = -1,
   showMoveNotation = false,
   moveNotationStartFrame = 0,
   player0Expression = 'idle',
@@ -36,7 +42,9 @@ export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
   player1ExpressionIntensity = 0,
   currentFrame,
 }) => {
-  const player1OnTurn = tilePoolBoardState.players[0]?.onturn || false;
+  const player1OnTurn = onturnPlayerIndex >= 0
+    ? onturnPlayerIndex === 0
+    : tilePoolBoardState.players[0]?.onturn || false;
 
   return (
     <AbsoluteFill
@@ -47,8 +55,8 @@ export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
       {/* Remaining tiles widget (top left) */}
       <RemainingTilesWidget
         boardTiles={tilePoolBoardState.tiles}
-        player1Rack={tilePoolBoardState.players[0]?.rack || []}
-        player2Rack={tilePoolBoardState.players[1]?.rack || []}
+        player1Rack={player0Rack ?? tilePoolBoardState.players[0]?.rack ?? []}
+        player2Rack={player1Rack ?? tilePoolBoardState.players[1]?.rack ?? []}
         player1OnTurn={player1OnTurn}
       />
 
@@ -123,13 +131,19 @@ export const BroadcastLayout: React.FC<BroadcastLayoutProps> = ({
       {/* Score widgets */}
       {boardState.players[0] && (
         <BroadcastScoreWidget
-          player={boardState.players[0]}
+          player={{
+            ...boardState.players[0],
+            onturn: onturnPlayerIndex === 0,
+          }}
           position="left"
         />
       )}
       {boardState.players[1] && (
         <BroadcastScoreWidget
-          player={boardState.players[1]}
+          player={{
+            ...boardState.players[1],
+            onturn: onturnPlayerIndex === 1,
+          }}
           position="right"
         />
       )}

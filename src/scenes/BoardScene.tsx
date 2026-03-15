@@ -115,15 +115,15 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
   // Generate camera keyframes based on timing cues
   const cameraKeyframes = useMemo((): CameraKeyframe[] => {
     const keyframes: CameraKeyframe[] = [];
+    let activeZoomEndFrame = -1;
 
     timingScript.cues.forEach((cue) => {
       const cueFrame = secondsToFrames(cue.time, fps);
 
       switch (cue.action) {
         case 'overview':
-          console.log(`OVERVIEW keyframe at frame ${cueFrame}, lookAt.y=-10`);
           keyframes.push({
-            frame: cueFrame,
+            frame: Math.max(cueFrame, activeZoomEndFrame + 1),
             position: [0, -40, 90],
             lookAt: [0, -10, 0],
           });
@@ -173,13 +173,9 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
             // Camera offset: position camera in Y to keep tiles centered in frame
             const cameraYOffset = 5; // Offset forward to center tiles in frame
 
-            // MEASURED timing model (from user measurements):
-            // - Tile animation speed: 0.3 (set in animationSource.speed)
-            // - Stagger: 8 / 0.3 ≈ 26.67 frames between tile starts
-            // - Fall time: ~40 frames per tile to land
-            const TILE_ANIMATION_SPEED = 0.3;
-            const staggerFrames = 8 / TILE_ANIMATION_SPEED; // ~26.67 frames
-            const tileFallTime = 40; // Measured from frame data
+            const animSpeed = cue.speed || 1.0;
+            const staggerFrames = 8 / animSpeed;
+            const tileFallTime = 30 / animSpeed; // spring settle time scaled by speed
 
             const firstTile = newTiles[0];
             const lastTile = newTiles[newTiles.length - 1];
@@ -224,6 +220,8 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
               position: [lastTilePos.x, lastTilePos.y + cameraYOffset, zoomHeight],
               lookAt: [lastTilePos.x, lastTilePos.y + cameraYOffset, lastTilePos.z],
             });
+
+            activeZoomEndFrame = panEndFrame + 30;
           }
           break;
       }
@@ -266,8 +264,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
     const state = boardStates[stateIndex];
     const numTiles = state?.tiles.filter(t => t.isNew).length || 0;
 
-    // Use correct speed: 0.3 for play_tiles_with_zoom, timing script speed for regular play_tiles
-    const actualSpeed = recentPlayTiles.action === 'play_tiles_with_zoom' ? 0.3 : (recentPlayTiles.speed || 1.0);
+    const actualSpeed = recentPlayTiles.speed || 1.0;
     const adjustedStagger = 8 / actualSpeed;
     const springDuration = 30 / actualSpeed; // Approximate spring settle time
     const animationDuration = ((numTiles - 1) * adjustedStagger + springDuration + 10) / fps; // +10 frames buffer
@@ -390,7 +387,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                     rackIndex,
                     animationStartFrame: secondsToFrames(playTilesCue.time, fps),
                     playIndex,
-                    speed: playTilesCue.action === 'play_tiles_with_zoom' ? 0.3 : (playTilesCue.speed || 1.0),
+                    speed: playTilesCue.speed || 1.0,
                   }
                 };
               }).filter(Boolean) as typeof currentBoardState.tiles;

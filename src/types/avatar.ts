@@ -11,7 +11,7 @@ export interface AvatarTraits {
 }
 
 // Expression states
-export type ExpressionType = 'idle' | 'happy' | 'sad' | 'frustrated' | 'angry';
+export type ExpressionType = 'idle' | 'happy' | 'sad' | 'frustrated' | 'angry' | 'eye_roll' | 'talking';
 
 export interface ExpressionState {
   type: ExpressionType;
