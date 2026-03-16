@@ -13,10 +13,19 @@ import { TileToScorecardAnimated } from "../components/three/TileToScorecardAnim
 import { BroadcastLayout } from "../components/overlays/BroadcastLayout";
 import { Rack } from "../components/three/Rack";
 import { AnimatedRackTile } from "../components/three/AnimatedRackTile";
-import { getBoardPosition, getRackPosition, getRackTileRotation } from "../lib/board-coordinates";
+import { getBoardPosition, getRackPosition } from "../lib/board-coordinates";
 import { secondsToFrames } from "../lib/audio-utils";
 import { ExpressionType } from "../types/avatar";
 import { hashString } from "../lib/avatar-generator";
+import {
+  computeRackDrawPlan,
+  computeDrawPhaseTiming,
+  getDrawPhase,
+  getLetterValue,
+  SWAP_DURATION,
+  type RackDrawPlan,
+  type DrawPhaseTiming,
+} from "../lib/rack-animation-utils";
 
 interface BroadcastSceneProps {
   boardStates: Board3DData[];
@@ -25,40 +34,63 @@ interface BroadcastSceneProps {
   boardColor?: string;
 }
 
-// Helper to get letter value
-function getLetterValue(letter: string): number {
-  if (letter === letter.toLowerCase() && letter !== letter.toUpperCase()) {
-    return 0; // blank tile
+type DrawAnimContext = {
+  plan: RackDrawPlan;
+  timing: DrawPhaseTiming;
+  playerIndex: number;
+  animStartFrame: number;
+  speed: number;
+};
+
+/** Compute draw-animation context for a specific player's most recent play. */
+function computePlayerDrawAnimContext(
+  playerIndex: number,
+  cues: TimingScript["cues"],
+  currentTimeSeconds: number,
+  boardStates: Board3DData[],
+  fps: number
+): DrawAnimContext | null {
+  // Most recent play cue for this player up to now
+  let playerCue: (typeof cues)[number] | undefined;
+  for (let i = cues.length - 1; i >= 0; i--) {
+    const c = cues[i];
+    if (c.time > currentTimeSeconds) continue;
+    if (c.action !== "play_tiles" && c.action !== "play_tiles_with_zoom") continue;
+    if (c.turnIndex === undefined) continue;
+    const pIdx = c.playerIndex !== undefined ? c.playerIndex : c.turnIndex % 2;
+    if (pIdx === playerIndex) { playerCue = c; break; }
   }
-  const values: Record<string, number> = {
-    A: 1,
-    E: 1,
-    I: 1,
-    O: 1,
-    U: 1,
-    L: 1,
-    N: 1,
-    S: 1,
-    T: 1,
-    R: 1,
-    D: 2,
-    G: 2,
-    B: 3,
-    C: 3,
-    M: 3,
-    P: 3,
-    F: 4,
-    H: 4,
-    V: 4,
-    W: 4,
-    Y: 4,
-    K: 5,
-    J: 8,
-    X: 8,
-    Q: 10,
-    Z: 10,
-  };
-  return values[letter.toUpperCase()] || 0;
+  if (!playerCue || playerCue.turnIndex === undefined) return null;
+
+  const stateIndex = playerCue.turnIndex + 1;
+  const state = boardStates[stateIndex];
+  if (!state) return null;
+
+  const prePlayRack = state.players[playerIndex]?.rack || [];
+  const playedTilesRaw = state.currentEvent?.playedTiles || "";
+  if (!playedTilesRaw) return null;
+
+  // Find this player's NEXT play cue (to get post-draw rack)
+  const nextCue = cues.find((c) => {
+    if (c.action !== "play_tiles" && c.action !== "play_tiles_with_zoom") return false;
+    if (c.turnIndex === undefined || c.turnIndex <= playerCue!.turnIndex!) return false;
+    const pIdx = c.playerIndex !== undefined ? c.playerIndex : c.turnIndex % 2;
+    return pIdx === playerIndex;
+  });
+  if (!nextCue || nextCue.turnIndex === undefined) return null;
+
+  const nextTurnRack = boardStates[nextCue.turnIndex + 1]?.players[playerIndex]?.rack;
+  if (!nextTurnRack || nextTurnRack.length === 0) return null;
+
+  const plan = computeRackDrawPlan(prePlayRack, playedTilesRaw, nextTurnRack);
+  if (!plan) return null;
+
+  const numTiles = state.tiles.filter((t) => t.isNew).length || 1;
+  const speed = playerCue.speed || 1.0;
+  const timing = computeDrawPhaseTiming(numTiles, plan, speed);
+  const animStartFrame = secondsToFrames(playerCue.time, fps);
+
+  return { plan, timing, playerIndex, animStartFrame, speed };
 }
 
 export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
@@ -306,24 +338,32 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
       .at(-1);
   }, [currentTimeSeconds, timingScript.cues]);
 
-  const showTileAnimation = useMemo(() => {
-    if (!playTilesCue) return false;
+  // Per-player draw animation contexts — independent so each rack animates freely
+  // even while the other player is taking their turn.
+  const drawAnimCtx0 = useMemo(
+    () => computePlayerDrawAnimContext(0, timingScript.cues, currentTimeSeconds, boardStates, fps),
+    [timingScript.cues, currentTimeSeconds, boardStates, fps]
+  );
+  const drawAnimCtx1 = useMemo(
+    () => computePlayerDrawAnimContext(1, timingScript.cues, currentTimeSeconds, boardStates, fps),
+    [timingScript.cues, currentTimeSeconds, boardStates, fps]
+  );
 
-    // Calculate animation duration based on number of tiles and speed
-    const stateIndex = playTilesCue.turnIndex !== undefined ? playTilesCue.turnIndex + 1 : currentStateIndex;
+  const showTileAnimation = useMemo(() => {
+    if (!playTilesCue || playTilesCue.turnIndex === undefined) return false;
+
+    // Phase 0 only: tiles flying from rack to board
+    const stateIndex = playTilesCue.turnIndex + 1;
     const state = boardStates[stateIndex];
     const numTiles = state?.tiles.filter(t => t.isNew).length || 0;
-
     const actualSpeed = playTilesCue.speed || 1.0;
     const adjustedStagger = 8 / actualSpeed;
-    const springDuration = 30 / actualSpeed; // Approximate spring settle time
-    const animationDurationFrames = (numTiles - 1) * adjustedStagger + springDuration + 10; // +10 frames buffer
+    const springDuration = 30 / actualSpeed;
+    const animationDurationFrames = (numTiles - 1) * adjustedStagger + springDuration + 10;
 
     const animStartFrame = secondsToFrames(playTilesCue.time, fps);
-    return (
-      frame >= animStartFrame && frame < animStartFrame + animationDurationFrames
-    );
-  }, [playTilesCue, frame, fps, currentStateIndex, boardStates]);
+    return frame >= animStartFrame && frame < animStartFrame + animationDurationFrames;
+  }, [playTilesCue, frame, fps, boardStates]);
 
   const showEndRackAnimation = activeCue?.action === 'end_rack' && !!currentBoardState.currentEvent;
 
@@ -416,6 +456,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
       : playTilesCue.turnIndex % 2;
   }, [showTileAnimation, playTilesCue]);
 
+
   // Who just played (regardless of whether animation is still running)
   const lastPlayedPlayerIndex = useMemo(() => {
     if (!playTilesCue || playTilesCue.turnIndex === undefined) return -1;
@@ -457,7 +498,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
   // This ensures each player's rack is shown from their correct state
   const { player0Rack, player1Rack, player1, player2 } = useMemo(() => {
     const getPlayerRackState = (playerIndex: number) => {
-      // During animation for THIS player: use the animation cue's state
+      // During animation for THIS player: use the animation cue's state (pre-play rack)
       if (playingPlayerIndex === playerIndex && playTilesCue?.turnIndex !== undefined) {
         const stateIndex = playTilesCue.turnIndex + 1;
         return boardStates[stateIndex]?.players[playerIndex];
@@ -644,62 +685,166 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
   // Derive animation cue and timing for rack tiles (handles both play_tiles and end_rack)
   const rackAnimCue = showEndRackAnimation ? activeCue : (showTileAnimation ? playTilesCue : null);
 
-  // Convert racks to tile data with animation state
-  const player1RackTiles = useMemo(() => {
-    const animatedRackMap = getAnimatedRackMap(0);
+  // Build draw-animation phase tiles for the animating player (phases 1-3)
+  type RackTileData = {
+    letter: string;
+    value: number;
+    rackIndex: number;
+    animationState?: {
+      type?: 'flyOff' | 'flyIn' | 'swap';
+      startFrame: number;
+      playIndex: number;
+      speed: number;
+      targetRackIndex?: number;
+    };
+  };
 
+  const buildDrawPhaseTiles = (playerIndex: number): RackTileData[] | null => {
+    const ctx = playerIndex === 0 ? drawAnimCtx0 : drawAnimCtx1;
+    if (!ctx) return null;
+
+    const frameOffset = frame - ctx.animStartFrame;
+    // Only active during phases 1-3 (after fly-off, before animation ends)
+    if (frameOffset < ctx.timing.phase0End || frameOffset >= ctx.timing.phase3End) return null;
+
+    const drawPhaseInfo = getDrawPhase(frameOffset, ctx.timing);
+    if (drawPhaseInfo.phase === 0 || drawPhaseInfo.phase === 'done') return null;
+
+    const { plan, timing, animStartFrame, speed } = ctx;
+    const phase = drawPhaseInfo.phase;
+
+    // Build postPlaySlots letters (non-null slots stay in their original positions)
+    const staticTiles: RackTileData[] = plan.postPlaySlots.flatMap((letter, slotIdx) => {
+      if (letter === null) return [];
+      const isBlank = letter === '?' || (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
+      return [{ letter, value: isBlank ? 0 : getLetterValue(letter), rackIndex: slotIdx }];
+    });
+
+    if (phase === 1) {
+      return staticTiles;
+    }
+
+    if (phase === 2) {
+      // Static remaining tiles + flyIn for drawn tiles
+      const phase2StartFrame = animStartFrame + timing.phase1End;
+      const tiles = [...staticTiles];
+      for (const dt of plan.drawnTiles) {
+        const isBlank = dt.letter === '?' || (dt.letter === dt.letter.toLowerCase() && dt.letter !== dt.letter.toUpperCase());
+        tiles.push({
+          letter: dt.letter,
+          value: isBlank ? 0 : getLetterValue(dt.letter),
+          rackIndex: dt.gapSlot,
+          animationState: {
+            type: 'flyIn' as const,
+            startFrame: phase2StartFrame,
+            playIndex: dt.drawOrder,
+            speed,
+          },
+        });
+      }
+      return tiles;
+    }
+
+    if (phase === 3) {
+      // Build intermediate rack (postPlaySlots + drawn tiles filled in)
+      const intermediateSlots: string[] = plan.postPlaySlots.map(l => l ?? '');
+      for (const dt of plan.drawnTiles) intermediateSlots[dt.gapSlot] = dt.letter;
+
+      // Determine which swaps have completed and apply them
+      const phase3Offset = frame - animStartFrame - timing.phase2End;
+      const swapDuration = SWAP_DURATION / speed;
+      const completedSwaps = Math.max(0, Math.floor(phase3Offset / swapDuration));
+      const currentSlots = [...intermediateSlots];
+      for (let s = 0; s < Math.min(completedSwaps, plan.swapSteps.length); s++) {
+        const step = plan.swapSteps[s];
+        [currentSlots[step.indexA], currentSlots[step.indexB]] = [currentSlots[step.indexB], currentSlots[step.indexA]];
+      }
+
+      // Active swap (in progress)
+      const activeStep = completedSwaps < plan.swapSteps.length ? plan.swapSteps[completedSwaps] : null;
+      const hiddenSlots = new Set<number>();
+      if (activeStep) hiddenSlots.add(activeStep.indexB); // target slot hidden while tile slides in
+
+      const phase3StartFrame = animStartFrame + timing.phase2End;
+
+      return currentSlots.flatMap((letter, slotIdx): RackTileData[] => {
+        if (!letter) return [];
+        if (hiddenSlots.has(slotIdx)) return [];
+
+        const isBlank = letter === '?' || (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
+        const base: RackTileData = { letter, value: isBlank ? 0 : getLetterValue(letter), rackIndex: slotIdx };
+
+        if (activeStep && slotIdx === activeStep.indexA) {
+          return [{
+            ...base,
+            animationState: {
+              type: 'swap' as const,
+              startFrame: phase3StartFrame + completedSwaps * swapDuration,
+              playIndex: 0,
+              speed,
+              targetRackIndex: activeStep.indexB,
+            },
+          }];
+        }
+        return [base];
+      });
+    }
+
+    return null;
+  };
+
+  // Convert racks to tile data with animation state
+  const player1RackTiles = useMemo((): RackTileData[] => {
+    // Phases 1-3: use draw-animation tiles
+    const drawTiles = buildDrawPhaseTiles(0);
+    if (drawTiles !== null) return drawTiles;
+
+    // Phase 0 / normal: use fly-off logic
+    const animatedRackMap = getAnimatedRackMap(0);
     return player0Rack.map((letter, i) => {
       const isBlank =
         letter === "?" ||
         (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
       const value = isBlank ? 0 : getLetterValue(letter);
-
       const playIndex = animatedRackMap.get(i);
       const isAnimated = playIndex !== undefined;
-
       return {
         letter,
         value,
         rackIndex: i,
         animationState:
           isAnimated && rackAnimCue
-            ? {
-                startFrame: secondsToFrames(rackAnimCue.time, fps),
-                playIndex,
-                speed: rackAnimCue.speed || 1.0,
-              }
+            ? { type: 'flyOff' as const, startFrame: secondsToFrames(rackAnimCue.time, fps), playIndex, speed: rackAnimCue.speed || 1.0 }
             : undefined,
       };
     });
-  }, [player0Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps]);
+  }, [player0Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps, drawAnimCtx0]);
 
-  const player2RackTiles = useMemo(() => {
+  const player2RackTiles = useMemo((): RackTileData[] => {
+    // Phases 1-3: use draw-animation tiles
+    const drawTiles = buildDrawPhaseTiles(1);
+    if (drawTiles !== null) return drawTiles;
+
+    // Phase 0 / normal: use fly-off logic
     const animatedRackMap = getAnimatedRackMap(1);
-
     return player1Rack.map((letter, i) => {
       const isBlank =
         letter === "?" ||
         (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
       const value = isBlank ? 0 : getLetterValue(letter);
-
       const playIndex = animatedRackMap.get(i);
       const isAnimated = playIndex !== undefined;
-
       return {
         letter,
         value,
         rackIndex: i,
         animationState:
           isAnimated && rackAnimCue
-            ? {
-                startFrame: secondsToFrames(rackAnimCue.time, fps),
-                playIndex,
-                speed: rackAnimCue.speed || 1.0,
-              }
+            ? { type: 'flyOff' as const, startFrame: secondsToFrames(rackAnimCue.time, fps), playIndex, speed: rackAnimCue.speed || 1.0 }
             : undefined,
       };
     });
-  }, [player1Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps]);
+  }, [player1Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps, drawAnimCtx1]);
 
   // Debug: comprehensive logging with duplicate letter tracking
   if (frame % 5 === 0 && showTileAnimation && playTilesCue?.turnIndex === 3) {

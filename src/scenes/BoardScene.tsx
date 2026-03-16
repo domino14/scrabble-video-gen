@@ -2,21 +2,29 @@
 
 import React, { useMemo } from 'react';
 import { ThreeCanvas } from '@remotion/three';
-import { useCurrentFrame, useVideoConfig, Sequence } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import * as THREE from 'three';
 import { Board3DData } from '../types/board-3d-data';
 import { TimingScript } from '../schemas/timing-script.schema';
 import { ScrabbleBoard } from '../components/three/ScrabbleBoard';
-import { Tile } from '../components/three/Tile';
 import { TileExchangeAnimated } from '../components/three/TileExchangeAnimated';
 import { TileToScorecardAnimated } from '../components/three/TileToScorecardAnimated';
+import { AnimatedRackTile } from '../components/three/AnimatedRackTile';
 import { CameraController, CameraKeyframe } from '../components/three/CameraController';
 import { TileGlow } from '../components/effects/TileGlow';
 import { Scorecard } from '../components/overlays/Scorecard';
 import { MoveNotation } from '../components/overlays/MoveNotation';
-import { TurnIndicator } from '../components/overlays/TurnIndicator';
 import { getBoardPosition, getRackPosition, getRackTileRotation, getZoomCameraPosition } from '../lib/board-coordinates';
 import { secondsToFrames } from '../lib/audio-utils';
+import {
+  computeRackDrawPlan,
+  computeDrawPhaseTiming,
+  getDrawPhase,
+  getLetterValue,
+  SWAP_DURATION,
+  type RackDrawPlan,
+  type DrawPhaseTiming,
+} from '../lib/rack-animation-utils';
 
 interface BoardSceneProps {
   boardStates: Board3DData[];
@@ -25,22 +33,6 @@ interface BoardSceneProps {
   boardColor?: string;
 }
 
-// Helper to get letter value (matching game-converter logic)
-function getLetterValue(letter: string): number {
-  if (letter === letter.toLowerCase() && letter !== letter.toUpperCase()) {
-    return 0; // blank tile
-  }
-  const values: Record<string, number> = {
-    'A': 1, 'E': 1, 'I': 1, 'O': 1, 'U': 1, 'L': 1, 'N': 1, 'S': 1, 'T': 1, 'R': 1,
-    'D': 2, 'G': 2,
-    'B': 3, 'C': 3, 'M': 3, 'P': 3,
-    'F': 4, 'H': 4, 'V': 4, 'W': 4, 'Y': 4,
-    'K': 5,
-    'J': 8, 'X': 8,
-    'Q': 10, 'Z': 10,
-  };
-  return values[letter.toUpperCase()] || 0;
-}
 
 export const BoardScene: React.FC<BoardSceneProps> = ({
   boardStates,
@@ -248,36 +240,91 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
     return keyframes;
   }, [timingScript.cues, fps]);
 
-  // Check if we should show tile animations
-  // Find the most recent play_tiles action and check if animation is still running
-  const { isPlayingTiles, playTilesCue } = useMemo(() => {
-    const recentPlayTiles = timingScript.cues
+  // Find the most recent play cue (regardless of animation state)
+  const recentPlayTilesCue = useMemo(() => {
+    return timingScript.cues
       .filter(cue => (cue.action === 'play_tiles' || cue.action === 'play_tiles_with_zoom') && cue.time <= currentTimeSeconds)
-      .at(-1);
+      .at(-1) ?? null;
+  }, [currentTimeSeconds, timingScript.cues]);
 
-    if (!recentPlayTiles || recentPlayTiles.turnIndex === undefined) {
+  // Compute draw animation context for the current play cue
+  const drawAnimContext = useMemo((): {
+    plan: RackDrawPlan;
+    timing: DrawPhaseTiming;
+    playerIndex: number;
+    animStartFrame: number;
+  } | null => {
+    if (!recentPlayTilesCue || recentPlayTilesCue.turnIndex === undefined) return null;
+
+    const pIdx = recentPlayTilesCue.playerIndex !== undefined
+      ? recentPlayTilesCue.playerIndex
+      : recentPlayTilesCue.turnIndex % 2;
+
+    const stateIndex = recentPlayTilesCue.turnIndex + 1;
+    const state = boardStates[stateIndex];
+    if (!state) return null;
+
+    const prePlayRack = state.players[pIdx]?.rack || [];
+    const playedTilesRaw = state.currentEvent?.playedTiles || '';
+    if (!playedTilesRaw) return null;
+
+    const nextCue = timingScript.cues.find(c => {
+      if ((c.action !== 'play_tiles' && c.action !== 'play_tiles_with_zoom') || c.turnIndex === undefined) return false;
+      if (c.turnIndex <= recentPlayTilesCue.turnIndex!) return false;
+      const cPIdx = c.playerIndex !== undefined ? c.playerIndex : c.turnIndex % 2;
+      return cPIdx === pIdx;
+    });
+    if (!nextCue || nextCue.turnIndex === undefined) return null;
+
+    const nextTurnRack = boardStates[nextCue.turnIndex + 1]?.players[pIdx]?.rack;
+    if (!nextTurnRack || nextTurnRack.length === 0) return null;
+
+    const plan = computeRackDrawPlan(prePlayRack, playedTilesRaw, nextTurnRack);
+    if (!plan) return null;
+
+    const numTiles = state.tiles.filter(t => t.isNew).length || 1;
+    const speed = recentPlayTilesCue.speed || 1.0;
+    const timing = computeDrawPhaseTiming(numTiles, plan, speed);
+    const animStartFrame = secondsToFrames(recentPlayTilesCue.time, fps);
+
+    return { plan, timing, playerIndex: pIdx, animStartFrame };
+  }, [recentPlayTilesCue, boardStates, timingScript.cues, fps]);
+
+  // Check if we should show tile animations (extended through phases 1-3)
+  const { isPlayingTiles, playTilesCue } = useMemo(() => {
+    if (!recentPlayTilesCue || recentPlayTilesCue.turnIndex === undefined) {
       return { isPlayingTiles: false, playTilesCue: null };
     }
 
-    // Calculate animation duration based on number of tiles and speed
-    const stateIndex = recentPlayTiles.turnIndex + 1;
+    const stateIndex = recentPlayTilesCue.turnIndex + 1;
     const state = boardStates[stateIndex];
     const numTiles = state?.tiles.filter(t => t.isNew).length || 0;
 
-    const actualSpeed = recentPlayTiles.speed || 1.0;
+    const actualSpeed = recentPlayTilesCue.speed || 1.0;
     const adjustedStagger = 8 / actualSpeed;
-    const springDuration = 30 / actualSpeed; // Approximate spring settle time
-    const animationDuration = ((numTiles - 1) * adjustedStagger + springDuration + 10) / fps; // +10 frames buffer
+    const springDuration = 30 / actualSpeed;
+    const phase0Duration = ((numTiles - 1) * adjustedStagger + springDuration + 10) / fps;
 
-    // Check if we're within the animation duration
-    const timeSinceStart = currentTimeSeconds - recentPlayTiles.time;
-    const stillAnimating = timeSinceStart < animationDuration;
+    // Extend through phases 1-3 if we have a draw plan
+    const totalDuration = drawAnimContext
+      ? drawAnimContext.timing.phase3End / fps
+      : phase0Duration;
+
+    const timeSinceStart = currentTimeSeconds - recentPlayTilesCue.time;
+    const stillAnimating = timeSinceStart < totalDuration;
 
     return {
       isPlayingTiles: stillAnimating,
-      playTilesCue: stillAnimating ? recentPlayTiles : null
+      playTilesCue: stillAnimating ? recentPlayTilesCue : null
     };
-  }, [currentTimeSeconds, timingScript.cues, boardStates, fps]);
+  }, [currentTimeSeconds, recentPlayTilesCue, boardStates, fps, drawAnimContext]);
+
+  // Current draw phase (null if not in a draw animation)
+  const currentDrawPhase = useMemo(() => {
+    if (!drawAnimContext || !isPlayingTiles) return null;
+    const frameOffset = frame - drawAnimContext.animStartFrame;
+    return getDrawPhase(frameOffset, drawAnimContext.timing);
+  }, [drawAnimContext, isPlayingTiles, frame]);
 
   const showTileAnimation = isPlayingTiles && currentBoardState.currentEvent;
   const showExchangeAnimation = activeCue?.action === 'exchange' && currentBoardState.currentEvent;
@@ -613,41 +660,122 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                 console.log(`  HIDING rack indices: [${Array.from(animatedRackIndices).join(', ')}] = letters [${hiddenLetters}]`);
               }
 
-              const rackTiles = player.rack.map((letter, index) => {
-                // Hide only the specific rack positions being animated
-                if (animatedRackIndices.has(index)) {
-                  // if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5 && index === 0) {
-                  //   console.log('Turn 3: Tile', index, 'is hidden (animated)');
-                  // }
-                  return null;
+              // ── Draw animation phases 1-3 ──────────────────────────────────────
+              const isDrawAnimPlayer =
+                drawAnimContext && drawAnimContext.playerIndex === playerIndex;
+              const drawPhase = currentDrawPhase?.phase;
+
+              if (isDrawAnimPlayer && drawPhase && drawPhase !== 'done') {
+                const { plan, timing, animStartFrame } = drawAnimContext!;
+                const speed = cue.speed || 1.0;
+
+                // Phase 1: static remaining tiles in their original slots
+                if (drawPhase === 1) {
+                  return plan.postPlaySlots.map((letter, slotIdx) => {
+                    if (letter === null) return null;
+                    const isBlank = letter === '?' || (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
+                    return (
+                      <AnimatedRackTile
+                        key={`rack-tile-${slotIdx}`}
+                        letter={letter}
+                        value={isBlank ? 0 : getLetterValue(letter)}
+                        rackIndex={slotIdx}
+                        isPlayer1={playerIndex === 0}
+                        tileColor={tileColor}
+                      />
+                    );
+                  });
                 }
 
-                const rackPos = getRackPosition(index);
-                const theta = getRackTileRotation();
+                // Phase 2: remaining tiles + flyIn for drawn tiles
+                if (drawPhase === 2) {
+                  const phase2StartFrame = animStartFrame + timing.phase1End;
+                  const staticPart = plan.postPlaySlots.map((letter, slotIdx) => {
+                    if (letter === null) return null;
+                    const isBlank = letter === '?' || (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
+                    return (
+                      <AnimatedRackTile
+                        key={`rack-tile-${slotIdx}`}
+                        letter={letter}
+                        value={isBlank ? 0 : getLetterValue(letter)}
+                        rackIndex={slotIdx}
+                        isPlayer1={playerIndex === 0}
+                        tileColor={tileColor}
+                      />
+                    );
+                  });
+                  const flyInPart = plan.drawnTiles.map(dt => {
+                    const isBlank = dt.letter === '?' || (dt.letter === dt.letter.toLowerCase() && dt.letter !== dt.letter.toUpperCase());
+                    return (
+                      <AnimatedRackTile
+                        key={`rack-drawn-${dt.gapSlot}`}
+                        letter={dt.letter}
+                        value={isBlank ? 0 : getLetterValue(dt.letter)}
+                        rackIndex={dt.gapSlot}
+                        animationState={{ type: 'flyIn', startFrame: phase2StartFrame, playIndex: dt.drawOrder, speed }}
+                        isPlayer1={playerIndex === 0}
+                        tileColor={tileColor}
+                      />
+                    );
+                  });
+                  return [...staticPart, ...flyInPart];
+                }
 
-                // if (cue.turnIndex === 3 && currentTimeSeconds >= 11.5 && currentTimeSeconds <= 13.5 && index === 0) {
-                //   console.log('Turn 3: Rendering tile', index, letter, 'at position:', rackPos, 'rotation:', theta);
-                // }
+                // Phase 3: all tiles in intermediate positions, active swap animated
+                if (drawPhase === 3) {
+                  const intermediateSlots: string[] = plan.postPlaySlots.map(l => l ?? '');
+                  for (const dt of plan.drawnTiles) intermediateSlots[dt.gapSlot] = dt.letter;
 
-                // Determine tile value from letter (blank detection)
-                // Blanks can be '?' or lowercase letters
+                  const phase3Offset = frame - animStartFrame - timing.phase2End;
+                  const swapDuration = SWAP_DURATION / speed;
+                  const completedSwaps = Math.max(0, Math.floor(phase3Offset / swapDuration));
+                  const currentSlots = [...intermediateSlots];
+                  for (let s = 0; s < Math.min(completedSwaps, plan.swapSteps.length); s++) {
+                    const step = plan.swapSteps[s];
+                    [currentSlots[step.indexA], currentSlots[step.indexB]] = [currentSlots[step.indexB], currentSlots[step.indexA]];
+                  }
+                  const activeStep = completedSwaps < plan.swapSteps.length ? plan.swapSteps[completedSwaps] : null;
+                  const phase3StartFrame = animStartFrame + timing.phase2End;
+                  const hiddenSlots = new Set<number>();
+                  if (activeStep) hiddenSlots.add(activeStep.indexB);
+
+                  return currentSlots.map((letter, slotIdx) => {
+                    if (!letter || hiddenSlots.has(slotIdx)) return null;
+                    const isBlank = letter === '?' || (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
+                    const animState = (activeStep && slotIdx === activeStep.indexA)
+                      ? { type: 'swap' as const, startFrame: phase3StartFrame + completedSwaps * swapDuration, playIndex: 0, speed, targetRackIndex: activeStep.indexB }
+                      : undefined;
+                    return (
+                      <AnimatedRackTile
+                        key={`rack-tile-${slotIdx}`}
+                        letter={letter}
+                        value={isBlank ? 0 : getLetterValue(letter)}
+                        rackIndex={slotIdx}
+                        animationState={animState}
+                        isPlayer1={playerIndex === 0}
+                        tileColor={tileColor}
+                      />
+                    );
+                  });
+                }
+              }
+
+              // ── Phase 0 / normal: existing fly-off logic ────────────────────────
+              const rackTiles = player.rack.map((letter, index) => {
+                if (animatedRackIndices.has(index)) return null;
+
                 const isBlank = letter === '?' || (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
                 const value = isBlank ? 0 : getLetterValue(letter);
 
                 return (
-                  <group
+                  <AnimatedRackTile
                     key={`rack-tile-${index}`}
-                    position={[rackPos.x, rackPos.y, rackPos.z]}
-                    rotation-x={theta}
-                  >
-                    <Tile
-                      letter={letter}
-                      value={value}
-                      position={[0, 0, 0]}
-                      color={tileColor}
-                      blank={isBlank}
-                    />
-                  </group>
+                    letter={letter}
+                    value={value}
+                    rackIndex={index}
+                    isPlayer1={playerIndex === 0}
+                    tileColor={tileColor}
+                  />
                 );
               });
 
