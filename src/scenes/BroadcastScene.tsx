@@ -738,7 +738,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
             type: 'flyIn' as const,
             startFrame: phase2StartFrame,
             playIndex: dt.drawOrder,
-            speed,
+            speed: 1.0,
           },
         });
       }
@@ -752,7 +752,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
 
       // Determine which swaps have completed and apply them
       const phase3Offset = frame - animStartFrame - timing.phase2End;
-      const swapDuration = SWAP_DURATION / speed;
+      const swapDuration = SWAP_DURATION; // always normal speed
       const completedSwaps = Math.max(0, Math.floor(phase3Offset / swapDuration));
       const currentSlots = [...intermediateSlots];
       for (let s = 0; s < Math.min(completedSwaps, plan.swapSteps.length); s++) {
@@ -781,7 +781,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
               type: 'swap' as const,
               startFrame: phase3StartFrame + completedSwaps * swapDuration,
               playIndex: 0,
-              speed,
+              speed: 1.0,
               targetRackIndex: activeStep.indexB,
             },
           }];
@@ -1049,7 +1049,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
                 backgroundColor: "rgba(30, 30, 30, 0.9)",
                 border:
                   "2px solid " +
-                  (player1.onturn ? "#4CAF50" : "rgba(255, 255, 255, 0.2)"),
+                  (onturnPlayerIndex === 0 ? "#4CAF50" : "rgba(255, 255, 255, 0.2)"),
                 borderRadius: "8px 8px 0 0",
                 display: "flex",
                 alignItems: "center",
@@ -1071,7 +1071,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
                 height: "100%",
                 border:
                   "3px solid " +
-                  (player1.onturn ? "#4CAF50" : "rgba(255, 255, 255, 0.3)"),
+                  (onturnPlayerIndex === 0 ? "#4CAF50" : "rgba(255, 255, 255, 0.3)"),
                 borderRadius: "0 0 12px 12px",
                 overflow: "hidden",
                 boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
@@ -1144,7 +1144,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
                 backgroundColor: "rgba(30, 30, 30, 0.9)",
                 border:
                   "2px solid " +
-                  (player2.onturn ? "#4CAF50" : "rgba(255, 255, 255, 0.2)"),
+                  (onturnPlayerIndex === 1 ? "#4CAF50" : "rgba(255, 255, 255, 0.2)"),
                 borderRadius: "8px 8px 0 0",
                 display: "flex",
                 alignItems: "center",
@@ -1166,7 +1166,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
                 height: "100%",
                 border:
                   "3px solid " +
-                  (player2.onturn ? "#4CAF50" : "rgba(255, 255, 255, 0.3)"),
+                  (onturnPlayerIndex === 1 ? "#4CAF50" : "rgba(255, 255, 255, 0.3)"),
                 borderRadius: "0 0 12px 12px",
                 overflow: "hidden",
                 boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",

@@ -712,7 +712,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                         letter={dt.letter}
                         value={isBlank ? 0 : getLetterValue(dt.letter)}
                         rackIndex={dt.gapSlot}
-                        animationState={{ type: 'flyIn', startFrame: phase2StartFrame, playIndex: dt.drawOrder, speed }}
+                        animationState={{ type: 'flyIn', startFrame: phase2StartFrame, playIndex: dt.drawOrder, speed: 1.0 }}
                         isPlayer1={playerIndex === 0}
                         tileColor={tileColor}
                       />
@@ -727,7 +727,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                   for (const dt of plan.drawnTiles) intermediateSlots[dt.gapSlot] = dt.letter;
 
                   const phase3Offset = frame - animStartFrame - timing.phase2End;
-                  const swapDuration = SWAP_DURATION / speed;
+                  const swapDuration = SWAP_DURATION; // always normal speed
                   const completedSwaps = Math.max(0, Math.floor(phase3Offset / swapDuration));
                   const currentSlots = [...intermediateSlots];
                   for (let s = 0; s < Math.min(completedSwaps, plan.swapSteps.length); s++) {
@@ -743,7 +743,7 @@ export const BoardScene: React.FC<BoardSceneProps> = ({
                     if (!letter || hiddenSlots.has(slotIdx)) return null;
                     const isBlank = letter === '?' || (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
                     const animState = (activeStep && slotIdx === activeStep.indexA)
-                      ? { type: 'swap' as const, startFrame: phase3StartFrame + completedSwaps * swapDuration, playIndex: 0, speed, targetRackIndex: activeStep.indexB }
+                      ? { type: 'swap' as const, startFrame: phase3StartFrame + completedSwaps * swapDuration, playIndex: 0, speed: 1.0, targetRackIndex: activeStep.indexB }
                       : undefined;
                     return (
                       <AnimatedRackTile

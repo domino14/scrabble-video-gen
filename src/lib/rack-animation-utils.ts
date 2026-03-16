@@ -162,24 +162,26 @@ export function computeRackDrawPlan(
 export function computeDrawPhaseTiming(
   numPlayedTiles: number,
   plan: RackDrawPlan,
-  speed: number
+  playSpeed: number
 ): DrawPhaseTiming {
-  const adj = (n: number) => n / speed;
-
+  // Phase 0 (fly-off) matches the play animation speed
   const phase0End =
-    (numPlayedTiles - 1) * adj(FLY_OFF_STAGGER) + adj(SPRING_DURATION) + 10;
+    (numPlayedTiles - 1) * (FLY_OFF_STAGGER / playSpeed) +
+    SPRING_DURATION / playSpeed +
+    10;
 
-  const phase1End = phase0End + adj(GAP_PAUSE);
+  // Phases 1-3 (rack refill) always run at normal speed regardless of play speed
+  const phase1End = phase0End + GAP_PAUSE;
 
   const numDrawn = plan.drawnTiles.length;
   const phase2End =
     numDrawn > 0
-      ? phase1End + (numDrawn - 1) * adj(DRAW_STAGGER) + adj(DRAW_FLY_DURATION)
+      ? phase1End + (numDrawn - 1) * DRAW_STAGGER + DRAW_FLY_DURATION
       : phase1End;
 
   const phase3End =
     plan.swapSteps.length > 0
-      ? phase2End + plan.swapSteps.length * adj(SWAP_DURATION)
+      ? phase2End + plan.swapSteps.length * SWAP_DURATION
       : phase2End;
 
   return { phase0End, phase1End, phase2End, phase3End };
