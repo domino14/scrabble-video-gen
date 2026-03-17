@@ -1,0 +1,14 @@
+diff --git a/node_modules/@remotion/renderer/dist/open-browser.js b/node_modules/@remotion/renderer/dist/open-browser.js
+index db42c28..0ffba11 100644
+--- a/node_modules/@remotion/renderer/dist/open-browser.js
++++ b/node_modules/@remotion/renderer/dist/open-browser.js
+@@ -31,6 +31,9 @@ const getOpenGlRenderer = (option) => {
+     if (renderer === 'swangle') {
+         return ['--use-gl=angle', '--use-angle=swiftshader'];
+     }
++    if (renderer === 'angle') {
++        return ['--use-gl=angle', '--use-angle=gl'];
++    }
+     if (renderer === 'angle-egl') {
+         return ['--use-gl=angle', '--use-angle=gl-egl'];
+     }

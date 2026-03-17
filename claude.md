@@ -184,15 +184,10 @@ PRIME Optimus mode. Use the Intel GPU via Mesa instead — same quality, ~8.5 mi
 
 **Prerequisites:**
 1. Install system Chromium: `sudo pacman -S chromium`
-2. Patch `node_modules/@remotion/renderer/dist/open-browser.js` — in `getOpenGlRenderer()`,
-   add before the final `return` line:
-   ```js
-   if (renderer === 'angle') {
-       return ['--use-gl=angle', '--use-angle=gl'];
-   }
-   ```
-   This forces ANGLE to use native OpenGL instead of Vulkan (NVIDIA driver lacks
-   `VK_EXT_headless_surface`).
+2. Run `npm install` — the `postinstall` script automatically applies
+   `patches/@remotion+renderer+4.0.434.patch` via `patch-package`, which adds the
+   `angle` renderer case to `@remotion/renderer`. This forces ANGLE to use native
+   OpenGL instead of Vulkan (NVIDIA driver lacks `VK_EXT_headless_surface`).
 
 **Render command:**
 ```bash
