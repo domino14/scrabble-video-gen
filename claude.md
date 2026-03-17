@@ -191,13 +191,11 @@ PRIME Optimus mode. Use the Intel GPU via Mesa instead — same quality, ~8.5 mi
 
 **Render command:**
 ```bash
-DISPLAY=:1 XAUTHORITY=/run/user/1000/xauth_Jkzsei XDG_RUNTIME_DIR=/run/user/1000 \
-  __GLX_VENDOR_LIBRARY_NAME=mesa DRI_PRIME=0 \
+DISPLAY=:1 XAUTHORITY=$(ls /run/user/1000/xauth_*) __GLX_VENDOR_LIBRARY_NAME=mesa DRI_PRIME=0 \
   npx remotion render GameAnalysis --gl=angle --browser-executable=$(which chromium) --concurrency=1
 ```
 
-> Note: `XAUTHORITY` path may change between sessions — if it fails, check
-> `ls /run/user/1000/xauth_*` for the current cookie file.
+> `XAUTHORITY` is needed so Chromium can authenticate to X display `:1` (the path changes each session, hence the subshell). `XDG_RUNTIME_DIR` is not needed.
 
 ### Linux fallback (software rendering — may have artifacts)
 
