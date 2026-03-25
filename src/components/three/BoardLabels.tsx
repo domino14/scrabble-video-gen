@@ -18,9 +18,8 @@ export const BoardLabels: React.FC<BoardLabelsProps> = ({ labelColor = '#888888'
       {/* Column labels (A, B, C, ..., O) */}
       {Array.from({ length: gridSize }, (_, i) => {
         const letter = String.fromCharCode(65 + i); // A = 65
-        // Offset adjusted for troika-three-text vs TextGeometry rendering difference
-        const x = i * SQUARE_SIZE - offset - SQUARE_SIZE / 4 + 0.6;
-        const y = offset + SQUARE_SIZE * 0.8;
+        const x = i * SQUARE_SIZE - offset; // centered exactly on each square
+        const y = offset + SQUARE_SIZE * 1.0; // enough clearance above top row for descenders
 
         return (
           <Text

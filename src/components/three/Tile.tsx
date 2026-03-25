@@ -12,6 +12,8 @@ interface TileProps {
   position: [number, number, number];
   color?: string;
   blank?: boolean;
+  opacity?: number; // 0-1, for ghost/variation tiles
+  textColor?: string; // override text color (e.g. for variation tiles)
 }
 
 // Tile color schemes (from liwords)
@@ -40,21 +42,24 @@ export const Tile: React.FC<TileProps> = ({
   position,
   color = 'orange',
   blank = false,
+  opacity = 1,
+  textColor: textColorOverride,
 }) => {
   // Use shared normal map (created once)
   const normalMap = getTileNormalMap();
 
-  const colorScheme = TILE_COLORS[color] || TILE_COLORS.orange;
-  const tileColor = colorScheme.hex;
+  // Support both named colors (from TILE_COLORS) and raw hex strings (e.g. for variation tiles)
+  const colorScheme = TILE_COLORS[color] || null;
+  const tileColor = colorScheme ? colorScheme.hex : (color.startsWith('#') ? color : TILE_COLORS.orange.hex);
 
   // Detect blank tiles (lowercase letters in liwords)
   const isBlank = letter === letter.toLowerCase() && letter !== letter.toUpperCase();
   const displayLetter = letter.toUpperCase();
 
   // Blank tiles have red text (or blue if tile is red/pink), otherwise use scheme's text color
-  const textColor = isBlank
+  const textColor = textColorOverride ?? (isBlank
     ? (color === 'red' || color === 'pink' ? '#0000ff' : '#ff0000')
-    : colorScheme.textColor;
+    : (colorScheme?.textColor ?? '#ffffff'));
 
   // Create rounded rectangle shape for tile (matching liwords exactly)
   // The shape starts at (0, 0) not centered - this affects positioning!
@@ -112,6 +117,8 @@ export const Tile: React.FC<TileProps> = ({
           metalness={0.0}
           normalScale={new THREE.Vector2(0.3, 0.3)}
           envMapIntensity={1.5}
+          transparent={opacity < 1}
+          opacity={opacity}
         />
       </mesh>
 

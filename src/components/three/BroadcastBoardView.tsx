@@ -9,18 +9,40 @@ import { BoardLabels } from './BoardLabels';
 import { BoardDecals } from './BoardDecals';
 import { AnimatedBoardTile } from './AnimatedBoardTile';
 import { WoodTable } from './WoodTable';
-import { BOARD_COLOR_SCHEMES } from '../../lib/color-schemes';
+import { Tile } from './Tile';
+import { BoardHighlight } from './BoardHighlight';
+import { BOARD_COLOR_SCHEMES, VARIATION_TILE_COLOR, VARIATION_TILE_TEXT_COLOR } from '../../lib/color-schemes';
+import { getBoardPosition } from '../../lib/board-coordinates';
+
+interface VariationTileData {
+  row: number;
+  col: number;
+  letter: string;
+  value: number;
+}
 
 interface BroadcastBoardViewProps {
   data: Board3DData;
   tileColor?: string;
   boardColor?: string;
+  variationTiles?: VariationTileData[];
+  variationOpacity?: number;
+  variationTileColor?: string;
+  variationTextColor?: string;
+  highlightRegion?: { startRow: number; startCol: number; endRow: number; endCol: number };
+  highlightOpacity?: number;
 }
 
 export const BroadcastBoardView: React.FC<BroadcastBoardViewProps> = ({
   data,
   tileColor = 'orange',
   boardColor = 'jade',
+  variationTiles,
+  variationOpacity = 0,
+  variationTileColor = VARIATION_TILE_COLOR,
+  variationTextColor = VARIATION_TILE_TEXT_COLOR,
+  highlightRegion,
+  highlightOpacity = 0,
 }) => {
   const boardColorHex = BOARD_COLOR_SCHEMES[boardColor as keyof typeof BOARD_COLOR_SCHEMES] ?? BOARD_COLOR_SCHEMES.jade;
 
@@ -61,6 +83,37 @@ export const BroadcastBoardView: React.FC<BroadcastBoardViewProps> = ({
           tileColor={tileColor}
         />
       ))}
+
+      {/* Variation tiles (ghost/hypothetical moves) */}
+      {variationTiles && variationOpacity > 0 && variationTiles.map((tile, index) => {
+        const pos = getBoardPosition(tile.row, tile.col);
+        const isBlank = tile.letter === tile.letter.toLowerCase() && tile.letter !== tile.letter.toUpperCase();
+        // Blanks get muted red text; non-blanks use the configured text color
+        const tileTextColor = isBlank ? '#cc4444' : variationTextColor;
+        return (
+          <group key={`variation-${tile.row}-${tile.col}-${index}`} position={[pos.x, pos.y, pos.z]}>
+            <Tile
+              letter={tile.letter}
+              value={tile.value}
+              position={[0, 0, 0]}
+              color={variationTileColor}
+              opacity={variationOpacity}
+              textColor={tileTextColor}
+            />
+          </group>
+        );
+      })}
+
+      {/* Board highlight overlay */}
+      {highlightRegion && highlightOpacity > 0 && (
+        <BoardHighlight
+          startRow={highlightRegion.startRow}
+          startCol={highlightRegion.startCol}
+          endRow={highlightRegion.endRow}
+          endCol={highlightRegion.endCol}
+          opacity={highlightOpacity}
+        />
+      )}
     </>
   );
 };

@@ -114,6 +114,44 @@ export function parsePosition(position: string): { row: number; col: number } {
 }
 
 /**
+ * Parse a variation move (position + word) into tile positions.
+ * position format: "8H" = horizontal starting at row 7, col H (7)
+ *                  "H8" = vertical starting at col H (7), row 7
+ * word: use "." for through-tiles already on board (skipped in output)
+ * Returns only the new tiles (non-dot characters).
+ */
+const LETTER_VALUES: Record<string, number> = {
+  A: 1, E: 1, I: 1, O: 1, U: 1, L: 1, N: 1, S: 1, T: 1, R: 1,
+  D: 2, G: 2, B: 3, C: 3, M: 3, P: 3,
+  F: 4, H: 4, V: 4, W: 4, Y: 4, K: 5, J: 8, X: 8, Q: 10, Z: 10,
+};
+
+export function parseVariationTiles(
+  position: string,
+  word: string
+): Array<{ row: number; col: number; letter: string; value: number }> {
+  const { row: startRow, col: startCol } = parsePosition(position);
+
+  // Determine direction: if position starts with a number it's horizontal, else vertical
+  const isHorizontal = /^\d/.test(position);
+
+  const tiles: Array<{ row: number; col: number; letter: string; value: number }> = [];
+  let offset = 0;
+  for (const char of word) {
+    const row = isHorizontal ? startRow : startRow + offset;
+    const col = isHorizontal ? startCol + offset : startCol;
+    if (char !== '.') {
+      // Preserve case — lowercase = blank tile (value 0, red/muted-red text)
+      const isBlank = char === char.toLowerCase() && char !== char.toUpperCase();
+      const value = isBlank ? 0 : (LETTER_VALUES[char.toUpperCase()] ?? 0);
+      tiles.push({ row, col, letter: char, value });
+    }
+    offset++;
+  }
+  return tiles;
+}
+
+/**
  * Check if a row/col is within board bounds
  */
 export function isValidSquare(row: number, col: number): boolean {

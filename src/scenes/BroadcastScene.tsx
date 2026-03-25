@@ -26,6 +26,7 @@ import {
   type RackDrawPlan,
   type DrawPhaseTiming,
 } from "../lib/rack-animation-utils";
+import { parseVariationTiles } from "../lib/board-coordinates";
 
 interface BroadcastSceneProps {
   boardStates: Board3DData[];
@@ -297,6 +298,7 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
     }
 
     // For play_tiles actions, show the state WITH the move (at index turnIndex + 1)
+    // For show_variation and highlight_region, show the board at turnIndex (like show_turn)
     const stateIndex =
       activeCue.action === "play_tiles" ||
       activeCue.action === "play_tiles_with_zoom" ||
@@ -366,6 +368,88 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
   }, [playTilesCue, frame, fps, boardStates]);
 
   const showEndRackAnimation = activeCue?.action === 'end_rack' && !!currentBoardState.currentEvent;
+
+  // Compute variation tiles, opacity, and style — supports fade-in and fade-out
+  const { variationTiles, variationOpacity, variationPlayerIndex, variationTileColor, variationTextColor } = useMemo(() => {
+    const fadeDuration = 15; // frames
+    const fadeDurationSecs = fadeDuration / fps;
+
+    // Find the most recent show_variation cue whose fade window covers the current time
+    let lastVariationCue: (typeof timingScript.cues)[number] | undefined;
+    let lastVariationCueIdx = -1;
+    for (let i = timingScript.cues.length - 1; i >= 0; i--) {
+      const c = timingScript.cues[i];
+      if (c.action !== 'show_variation' || !c.variation) continue;
+      const nextCue = timingScript.cues[i + 1];
+      const endTime = nextCue ? nextCue.time + fadeDurationSecs : Infinity;
+      if (c.time <= currentTimeSeconds && currentTimeSeconds <= endTime) {
+        lastVariationCue = c;
+        lastVariationCueIdx = i;
+        break;
+      }
+    }
+
+    if (!lastVariationCue?.variation) {
+      return { variationTiles: undefined, variationOpacity: 0, variationPlayerIndex: -1, variationTileColor: undefined, variationTextColor: undefined };
+    }
+
+    const tiles = parseVariationTiles(lastVariationCue.variation.position, lastVariationCue.variation.word);
+    const cueStartFrame = secondsToFrames(lastVariationCue.time, fps);
+    const nextCue = timingScript.cues[lastVariationCueIdx + 1];
+    const nextCueStartFrame = nextCue ? secondsToFrames(nextCue.time, fps) : Infinity;
+
+    let opacity: number;
+    if (frame < cueStartFrame + fadeDuration) {
+      opacity = Math.min(1, Math.max(0, (frame - cueStartFrame) / fadeDuration));
+    } else if (frame >= nextCueStartFrame) {
+      opacity = Math.min(1, Math.max(0, 1 - (frame - nextCueStartFrame) / fadeDuration));
+    } else {
+      opacity = 1;
+    }
+
+    const playerIndex = lastVariationCue.playerIndex !== undefined
+      ? lastVariationCue.playerIndex
+      : (lastVariationCue.turnIndex !== undefined ? lastVariationCue.turnIndex % 2 : 0);
+
+    return {
+      variationTiles: tiles,
+      variationOpacity: opacity,
+      variationPlayerIndex: playerIndex,
+      variationTileColor: lastVariationCue.variationStyle?.tileColor,
+      variationTextColor: lastVariationCue.variationStyle?.textColor,
+    };
+  }, [frame, fps, timingScript.cues, currentTimeSeconds]);
+
+  /**
+   * Compute which indices to hide from a specific displayed rack.
+   * Must match against the actual displayed rack (not board-state rack) to avoid index mismatch.
+   */
+  const getVariationHiddenIndices = (displayedRack: string[]): Set<number> => {
+    if (!variationTiles || variationOpacity <= 0) return new Set();
+    const hidden = new Set<number>();
+    const usedIdx = new Set<number>();
+    for (const tile of variationTiles) {
+      const isBlank = tile.letter === tile.letter.toLowerCase() && tile.letter !== tile.letter.toUpperCase();
+      const idx = displayedRack.findIndex((l, i) => {
+        if (usedIdx.has(i)) return false;
+        if (isBlank) return l === '?';
+        return l.toUpperCase() === tile.letter.toUpperCase();
+      });
+      if (idx !== -1) { hidden.add(idx); usedIdx.add(idx); }
+    }
+    return hidden;
+  };
+
+  // Compute highlight region and opacity
+  const { highlightRegion, highlightOpacity } = useMemo(() => {
+    if (activeCue?.action !== 'highlight_region' || !activeCue.highlightRegion) {
+      return { highlightRegion: undefined, highlightOpacity: 0 };
+    }
+    const cueStartFrame = secondsToFrames(activeCue.time, fps);
+    const fadeDuration = 15;
+    const opacity = Math.min(1, Math.max(0, (frame - cueStartFrame) / fadeDuration));
+    return { highlightRegion: activeCue.highlightRegion, highlightOpacity: opacity };
+  }, [activeCue, frame, fps]);
 
   // Prepare board data with animations
   const boardDataWithAnimations = useMemo(
@@ -801,24 +885,29 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
 
     // Phase 0 / normal: use fly-off logic
     const animatedRackMap = getAnimatedRackMap(0);
-    return player0Rack.map((letter, i) => {
-      const isBlank =
-        letter === "?" ||
-        (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
-      const value = isBlank ? 0 : getLetterValue(letter);
-      const playIndex = animatedRackMap.get(i);
-      const isAnimated = playIndex !== undefined;
-      return {
-        letter,
-        value,
-        rackIndex: i,
-        animationState:
-          isAnimated && rackAnimCue
-            ? { type: 'flyOff' as const, startFrame: secondsToFrames(rackAnimCue.time, fps), playIndex, speed: rackAnimCue.speed || 1.0 }
-            : undefined,
-      };
-    });
-  }, [player0Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps, drawAnimCtx0]);
+    // Match variation tiles against this exact displayed rack to get correct hidden indices
+    const hiddenIndices = variationPlayerIndex === 0 ? getVariationHiddenIndices(player0Rack) : new Set<number>();
+    return player0Rack
+      .map((letter, i) => {
+        if (hiddenIndices.has(i)) return null;
+        const isBlank =
+          letter === "?" ||
+          (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
+        const value = isBlank ? 0 : getLetterValue(letter);
+        const playIndex = animatedRackMap.get(i);
+        const isAnimated = playIndex !== undefined;
+        return {
+          letter,
+          value,
+          rackIndex: i,
+          animationState:
+            isAnimated && rackAnimCue
+              ? { type: 'flyOff' as const, startFrame: secondsToFrames(rackAnimCue.time, fps), playIndex, speed: rackAnimCue.speed || 1.0 }
+              : undefined,
+        };
+      })
+      .filter(Boolean) as RackTileData[];
+  }, [player0Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps, drawAnimCtx0, variationTiles, variationOpacity, variationPlayerIndex]);
 
   const player2RackTiles = useMemo((): RackTileData[] => {
     // Phases 1-3: use draw-animation tiles
@@ -827,24 +916,29 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
 
     // Phase 0 / normal: use fly-off logic
     const animatedRackMap = getAnimatedRackMap(1);
-    return player1Rack.map((letter, i) => {
-      const isBlank =
-        letter === "?" ||
-        (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
-      const value = isBlank ? 0 : getLetterValue(letter);
-      const playIndex = animatedRackMap.get(i);
-      const isAnimated = playIndex !== undefined;
-      return {
-        letter,
-        value,
-        rackIndex: i,
-        animationState:
-          isAnimated && rackAnimCue
-            ? { type: 'flyOff' as const, startFrame: secondsToFrames(rackAnimCue.time, fps), playIndex, speed: rackAnimCue.speed || 1.0 }
-            : undefined,
-      };
-    });
-  }, [player1Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps, drawAnimCtx1]);
+    // Match variation tiles against this exact displayed rack to get correct hidden indices
+    const hiddenIndices = variationPlayerIndex === 1 ? getVariationHiddenIndices(player1Rack) : new Set<number>();
+    return player1Rack
+      .map((letter, i) => {
+        if (hiddenIndices.has(i)) return null;
+        const isBlank =
+          letter === "?" ||
+          (letter === letter.toLowerCase() && letter !== letter.toUpperCase());
+        const value = isBlank ? 0 : getLetterValue(letter);
+        const playIndex = animatedRackMap.get(i);
+        const isAnimated = playIndex !== undefined;
+        return {
+          letter,
+          value,
+          rackIndex: i,
+          animationState:
+            isAnimated && rackAnimCue
+              ? { type: 'flyOff' as const, startFrame: secondsToFrames(rackAnimCue.time, fps), playIndex, speed: rackAnimCue.speed || 1.0 }
+              : undefined,
+        };
+      })
+      .filter(Boolean) as RackTileData[];
+  }, [player1Rack, playingPlayerIndex, showTileAnimation, showEndRackAnimation, rackAnimCue, boardStates, currentBoardState.tiles, frame, fps, drawAnimCtx1, variationTiles, variationOpacity, variationPlayerIndex]);
 
   // Debug: comprehensive logging with duplicate letter tracking
   if (frame % 5 === 0 && showTileAnimation && playTilesCue?.turnIndex === 3) {
@@ -983,6 +1077,12 @@ export const BroadcastScene: React.FC<BroadcastSceneProps> = ({
               data={boardDataWithAnimations}
               tileColor={tileColor}
               boardColor={boardColor}
+              variationTiles={variationTiles}
+              variationOpacity={variationOpacity}
+              variationTileColor={variationTileColor}
+              variationTextColor={variationTextColor}
+              highlightRegion={highlightRegion}
+              highlightOpacity={highlightOpacity}
             />
             {showEndRackAnimation && activeCue?.turnIndex !== undefined && (() => {
               const endRackState = boardStates[activeCue.turnIndex];

@@ -30,5 +30,9 @@ export const BONUS_COLORS = {
   '^': '#99ff99', // Custom bonus (if used)
 } as const;
 
+// Ghost tile color for showing variations (hypothetical/alternative moves)
+export const VARIATION_TILE_COLOR = '#6688aa';
+export const VARIATION_TILE_TEXT_COLOR = '#ffffff';
+
 export type TileColorName = keyof typeof TILE_COLOR_SCHEMES;
 export type BoardColorName = keyof typeof BOARD_COLOR_SCHEMES;
